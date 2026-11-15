@@ -1595,6 +1595,21 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_scandinavia_achievements_are_not_tracked() {
+        for id in ["cattle_drive", "miner"] {
+            let definition = ACHIEVEMENTS
+                .iter()
+                .find(|definition| definition.id == id)
+                .expect("achievement definition");
+
+            assert!(matches!(
+                definition.tracking,
+                AchievementTracking::NotTracked { .. }
+            ));
+        }
+    }
+
+    #[test]
     fn evaluates_test_drive_limited_owned_truck_jobs_only() {
         let save = save_with_entries(vec![
             entry("cargo.gravel", 999, "vehicle.man.tgx", "cargo"),

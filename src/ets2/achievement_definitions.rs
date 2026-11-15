@@ -639,7 +639,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "sc_cows_to_farm",
         display_name: "Cattle Drive",
         description: "Complete a cattle delivery to any company in Scandinavia DLC (requires Scandinavia DLC)",
-        tracking: tracked(cattle_drive),
+        tracking: not_tracked("Needs a list of cattle cargo and Scandinavia companies, which the tracker does not have yet."),
     },
     AchievementDefinition {
         id: "sightseer",
@@ -655,7 +655,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "sc_quarries_cargo",
         display_name: "Miner",
         description: "Complete delivery jobs to at least 3 quarries in Scandinavia DLC (requires Scandinavia DLC)",
-        tracking: tracked(miner),
+        tracking: not_tracked("Needs a list of quarry companies in Scandinavia, which the tracker does not have yet."),
     },
     AchievementDefinition {
         id: "aquaphobia",
