@@ -587,11 +587,15 @@ function AchievementEvidenceList({
           const listLabel = labelFor(item);
           const hasList = listLabel !== null && items.length > 1;
           const highlighted = highlightComplete && item.complete;
+          const className =
+            [
+              highlighted ? "evidence-complete" : "",
+              FULL_TEXT_EVIDENCE_LABELS.has(item.label) ? "evidence-full" : "",
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined;
           return (
-            <li
-              key={item.label}
-              className={highlighted ? "evidence-complete" : undefined}
-            >
+            <li key={item.label} className={className}>
               <span className="evidence-label">
                 {highlighted ? (
                   <span className="evidence-check" aria-label="reached">
@@ -684,7 +688,10 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   experience_beats_all: "delivered cargoes",
   all_is_possible: "completed cargoes",
   size_matters: "delivered oversize cargoes",
-  the_bigger_the_better: "delivered oversize cargoes",
+  the_bigger_the_better: {
+    "Oversize cargoes": "delivered oversize cargoes",
+    "Not delivered yet": "oversize cargoes not delivered yet",
+  },
   giant: "delivered oversize cargoes",
   not_a_canoe: "delivered oversize cargoes",
   volvo_trucks_lover: "completed deliveries",
@@ -716,9 +723,13 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   rule_of_threes: "qualifying coach jobs",
   cattle_drive: "cattle deliveries",
   big_brother: "delivered oversize cargoes",
+  job_is_only_worth_it_if_its_done_well: "perfect deliveries",
+  just_in_time: "qualifying deliveries",
   driver_exceptionnel: {
     Driven: "driven base game routes",
     "Not driven yet": "base game routes not driven yet",
+    "Driven routes from DLC (not counted)": "driven DLC routes",
+    "Unrecognised routes (not counted)": "unrecognised routes",
   },
   miner: {
     "Delivered to": "quarries delivered to",
@@ -727,7 +738,13 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
 };
 
 // Achievements whose evidence rows turn green once each row's goal is met.
-const HIGHLIGHT_COMPLETE_EVIDENCE = new Set(["test_drive_limited"]);
+const HIGHLIGHT_COMPLETE_EVIDENCE = new Set([
+  "test_drive_limited",
+  "iberian_pilgrimage",
+]);
+
+// Explanations shown in full (wrapped) instead of cut to one line.
+const FULL_TEXT_EVIDENCE_LABELS = new Set(["Note", "Not tracked yet"]);
 
 function evidenceListItemLabel(
   itemLabel: EvidenceItemLabel | null,

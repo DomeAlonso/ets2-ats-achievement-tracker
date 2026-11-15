@@ -36,6 +36,17 @@ const THE_BIGGER_THE_BETTER_TARGET_CARGOS: u32 = 10;
 const MASS_TO_DON_TARGET_TONNES: u32 = 195;
 const DRIVER_EXCEPTIONNEL_TARGET_ROUTES: u32 = 10;
 const FREE_ROAM_JOB_TYPE: &str = "freerm";
+const WORLD_OF_TRUCKS_JOB_TYPE: &str = "on_compn";
+const PERFECT_DELIVERY_MIN_DISTANCE_KM: u32 = 1_000;
+const URGENT: u32 = 2;
+const JUST_IN_TIME_MIN_DISTANCE_KM: u32 = 550;
+const JUST_IN_TIME_MAX_MINUTES_LEFT: i64 = 30;
+const PARKING_EASY: u32 = 1;
+const PARKING_NORMAL: u32 = 2;
+const PARKING_TOUGH: u32 = 3;
+const PARKING_CHALLENGE_TARGET_DELIVERIES: u32 = 20;
+const MINIMAXER_TARGET_XP: u32 = 20_000;
+const MINIMAXER_MAX_DISTANCE_KM: u64 = 10_000;
 /// Special Transport DLC cargo: ID, in-game name, mass in tonnes.
 const SPECIAL_TRANSPORT_CARGOES: [(&str, &str, u32); 11] = [
     ("boiler_parts", "Boiler Part", 45),
@@ -50,27 +61,70 @@ const SPECIAL_TRANSPORT_CARGOES: [(&str, &str, u32); 11] = [
     ("pilot_boat", "Service Boat", 25),
     ("silo", "Giant Silo", 40),
 ];
-/// Base-game Special Transport routes (`route_data.<id>` in the save's
-/// `oversize_offer_ctrl`). The only Munich route in the save is
-/// `munch_inns1`; it stands for the Munich route in the base-game list.
-const BASE_GAME_SPECIAL_ROUTES: [(&str, &str); 17] = [
-    ("lux_lieg1", "Luxembourg – Liège"),
-    ("shef_bir1", "Sheffield – Birmingham"),
-    ("bre_tra1", "Bremen – Travemünde"),
-    ("ber_szcz1", "Berlin – Szczecin"),
-    ("reim_stra1", "Reims – Strasbourg"),
-    ("dort_hann1", "Dortmund – Hannover"),
-    ("prag_nurn1", "Praha – Nürnberg"),
-    ("glas_aber1", "Glasgow – Aberdeen"),
-    ("munch_inns1", "Munich – Salzburg"),
-    ("koln_amster1", "Cologne – Amsterdam"),
-    ("brus_amster1", "Brussel – Amsterdam"),
-    ("lin_br1", "Linz – Brno"),
-    ("lon_fel1", "London – Felixstowe"),
-    ("dij_gen1", "Dijon – Genève"),
-    ("car_bir1", "Cardiff – Birmingham"),
-    ("ply_dov1", "Plymouth – Dover"),
-    ("brat_graz1", "Bratislava – Graz"),
+/// Special Transport routes offered in a 1.58 save (`route_data.<id>` in
+/// `oversize_offer_ctrl`), with the cities they connect. A route counts as
+/// base game when both cities are base-game cities in the city list.
+const SPECIAL_ROUTES: [(&str, &str, &str); 60] = [
+    ("ath_ath1", "athens", "athens"),
+    ("barc_vand1", "barcelona", "vandellos"),
+    ("beo_uzi1", "beograd", "uzice"),
+    ("ber_szcz1", "berlin", "szczecin"),
+    ("brat_graz1", "bratislava", "graz"),
+    ("bre_ren1", "brest", "rennes"),
+    ("bre_tra1", "bremen", "travemunde"),
+    ("brus_amster1", "brussel", "amsterdam"),
+    ("cag_sas1", "cagliari", "sassari"),
+    ("car_bir1", "cardiff", "birmingham"),
+    ("dau_rez1", "daugavpils", "rezekne"),
+    ("dij_gen1", "dijon", "geneve"),
+    ("dort_hann1", "dortmund", "hannover"),
+    ("dres_wroc1", "dresden", "wroclaw"),
+    ("gal_las1", "galati", "iasi"),
+    ("gij_nav1", "gijon", "navia"),
+    ("glas_aber1", "glasgow", "aberdeen"),
+    ("got_hel1", "goteborg", "helsingborg"),
+    ("hue_sev1", "huelva", "sevilla"),
+    ("ioa_vlo1", "ioannina", "vlore"),
+    ("ist_edi1", "istanbul", "edirne"),
+    ("kas_ham1", "kassel", "hamburg"),
+    ("koln_amster1", "koln", "amsterdam"),
+    ("kop_nov1", "koper", "novo_mesto"),
+    ("kos_bud1", "kosice", "budapest"),
+    ("kra_ban1", "kragujevac", "banja_luka"),
+    ("kra_nov1", "kragujevac", "novi_sad"),
+    ("lin_br1", "linz", "brno"),
+    ("lin_kal1", "linkoping", "kalmar"),
+    ("lis_pon1", "lisboa", "ponte_de_sor"),
+    ("lon_fel1", "london", "felixstowe"),
+    ("lux_lieg1", "luxembourg", "liege"),
+    ("mad_pue1", "madrid", "puertollano"),
+    ("munch_inns1", "munchen", "innsbruck"),
+    ("nan_civ1", "nantes", "civaux"),
+    ("nap_ter1", "napoli", "terni"),
+    ("nic_nic1", "nice", "nice"),
+    ("ode_hir1", "odense", "hirtshals"),
+    ("olh_lis1", "olhao", "lisboa"),
+    ("ols_bial1", "olsztyn", "bialystok"),
+    ("pal_cat1", "palermo", "catania"),
+    ("ple_sof1", "pleven", "sofia"),
+    ("ply_dov1", "plymouth", "dover"),
+    ("por_hel1", "pori", "helsinki"),
+    ("prag_nurn1", "prague", "nurnberg"),
+    ("reim_stra1", "reims", "strasbourg"),
+    ("res_tar1", "resita", "targu_mures"),
+    ("ros_ber1", "rostock", "berlin"),
+    ("shef_bir1", "sheffield", "birmingham"),
+    ("sko_bit1", "skopje", "bitola"),
+    ("sor_ter1", "soria", "teruel"),
+    ("sos_pet1", "sosnovy_bor", "petersburg"),
+    ("stav_osl1", "stavanger", "oslo"),
+    ("sze_deb1", "szeged", "debrecen"),
+    ("the_tri1", "thessaloniki", "trikala"),
+    ("tou_mon1", "toulouse", "montpellier"),
+    ("tre_esb1", "trelleborg", "esbjerg"),
+    ("ver_par1", "verona", "parma"),
+    ("war_kat1", "warszawa", "katowice"),
+    ("zen_kar1", "zenica", "karakaj"),
 ];
 const TURKISH_DELIGHT_TARGET_DELIVERIES: u32 = 3;
 const TURKISH_DELIGHT_MIN_DISTANCE_KM: u32 = 2500;
@@ -122,6 +176,8 @@ const CORSICA_CITIES: [&str; 6] = [
 const SARDINIA_CITIES: [&str; 3] = ["cagliari", "olbia", "sassari"];
 /// `dlc` of Scandinavia DLC cities in the city list (`dlc_north` in cities_by_dlc.json).
 const SCANDINAVIA_DLC: &str = "scandinavia";
+/// `dlc` of base-game cities in the city list (`def` in cities_by_dlc.json).
+const BASE_GAME_DLC: &str = "base_game";
 const CATTLE_CARGO: &str = "live_cattle";
 /// The seven Scandinavia DLC quarries (`company_def` per city). `ms_stein` also
 /// has a base-game quarry in Glasgow, which does not count.
@@ -578,6 +634,173 @@ pub(crate) fn road_to_the_adriatics(save: &SaveGame) -> AchievementEvaluation {
     discovered_cities(save, CityScope::Dlc("west_balkans"), 20)
 }
 
+// ---- Delivery quality ------------------------------------------------------
+
+/// Jobs in the delivery log (free roam is not a job), oldest first.
+fn jobs(save: &SaveGame) -> impl Iterator<Item = &DeliveryLogEntry> {
+    save.delivery_log
+        .entries
+        .iter()
+        .filter(|entry| entry.job_type != FREE_ROAM_JOB_TYPE)
+}
+
+/// The job's planned distance, falling back to the driven distance.
+fn job_distance(entry: &DeliveryLogEntry) -> u32 {
+    if entry.planned_distance_km > 0 {
+        entry.planned_distance_km
+    } else {
+        entry.distance_km
+    }
+}
+
+fn job_summary(entry: &DeliveryLogEntry) -> String {
+    format!(
+        "{} → {}, {}, {} km",
+        city_name(company_city(&entry.source_company)),
+        city_name(company_city(&entry.destination_company)),
+        cargo_id(&entry.cargo),
+        job_distance(entry)
+    )
+}
+
+pub(crate) fn job_is_only_worth_it_if_its_done_well(save: &SaveGame) -> AchievementEvaluation {
+    let perfect = jobs(save)
+        .filter(|entry| job_distance(entry) >= PERFECT_DELIVERY_MIN_DISTANCE_KM)
+        .filter(|entry| {
+            entry.cargo_damage <= 0.0 && entry.fines == 0 && entry.time_left_minutes >= 0
+        })
+        .map(job_summary)
+        .collect::<Vec<_>>();
+    let current = perfect.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "perfect deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Perfect 1,000 km+ jobs".to_string(),
+            value: summarize_list(&perfect),
+            items: perfect.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+pub(crate) fn just_in_time(save: &SaveGame) -> AchievementEvaluation {
+    // World of Trucks jobs only record in time / late, not the minutes left.
+    let qualifying = jobs(save)
+        .filter(|entry| entry.job_type != WORLD_OF_TRUCKS_JOB_TYPE)
+        .filter(|entry| entry.urgency == URGENT)
+        .filter(|entry| job_distance(entry) >= JUST_IN_TIME_MIN_DISTANCE_KM)
+        .filter(|entry| (0..JUST_IN_TIME_MAX_MINUTES_LEFT).contains(&entry.time_left_minutes))
+        .map(|entry| {
+            format!(
+                "{}, {} min left",
+                job_summary(entry),
+                entry.time_left_minutes
+            )
+        })
+        .collect::<Vec<_>>();
+    let current = qualifying.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Urgent 550 km+, under 30 min left".to_string(),
+            value: summarize_list(&qualifying),
+            items: qualifying.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+pub(crate) fn parking_challenge(save: &SaveGame) -> AchievementEvaluation {
+    let count = |parking: u32| jobs(save).filter(|entry| entry.parking == parking).count() as u32;
+    let (easy, normal, tough) = (
+        count(PARKING_EASY),
+        count(PARKING_NORMAL),
+        count(PARKING_TOUGH),
+    );
+    let current = normal + tough;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, PARKING_CHALLENGE_TARGET_DELIVERIES),
+        progress: AchievementProgress {
+            current,
+            target: PARKING_CHALLENGE_TARGET_DELIVERIES,
+            unit: "deliveries with reversing",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Tough parking".to_string(),
+                value: format!("{tough} deliveries"),
+                items: Vec::new(),
+                complete: tough > 0,
+            },
+            AchievementEvidence {
+                label: "Normal parking".to_string(),
+                value: format!("{normal} deliveries"),
+                items: Vec::new(),
+                complete: normal > 0,
+            },
+            AchievementEvidence {
+                label: "Easy parking (no reversing)".to_string(),
+                value: format!("{easy} deliveries, not counted"),
+                items: Vec::new(),
+                complete: false,
+            },
+        ],
+    }
+}
+
+pub(crate) fn minimaxer(save: &SaveGame) -> AchievementEvaluation {
+    let jobs = jobs(save).collect::<Vec<_>>();
+    // Highest-XP run of consecutive jobs below the distance cap. XP and
+    // distance never decrease as a run grows, so two pointers suffice.
+    let (mut best_xp, mut best_km, mut best_jobs) = (0_u64, 0_u64, 0_usize);
+    let (mut start, mut xp, mut km) = (0_usize, 0_u64, 0_u64);
+    for (end, job) in jobs.iter().enumerate() {
+        xp += u64::from(job.xp);
+        km += u64::from(job.distance_km);
+        while km >= MINIMAXER_MAX_DISTANCE_KM && start <= end {
+            xp -= u64::from(jobs[start].xp);
+            km -= u64::from(jobs[start].distance_km);
+            start += 1;
+        }
+        if start <= end && xp > best_xp {
+            (best_xp, best_km, best_jobs) = (xp, km, end + 1 - start);
+        }
+    }
+    let current = saturating_u32(best_xp);
+
+    AchievementEvaluation {
+        status: status_from_progress(current, MINIMAXER_TARGET_XP),
+        progress: AchievementProgress {
+            current,
+            target: MINIMAXER_TARGET_XP,
+            unit: "XP",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Best run under 10,000 km".to_string(),
+            value: if best_jobs == 0 {
+                "missing".to_string()
+            } else {
+                format!("{best_xp} XP over {best_jobs} jobs, {best_km} km")
+            },
+            items: Vec::new(),
+            complete: current >= MINIMAXER_TARGET_XP,
+        }],
+    }
+}
+
 // ---- Scandinavia deliveries -------------------------------------------------
 
 pub(crate) fn cattle_drive(save: &SaveGame) -> AchievementEvaluation {
@@ -868,21 +1091,27 @@ fn large_garage_weeks(save: &SaveGame) -> Option<Vec<GarageWeek>> {
     let garages = save.career.garages.as_ref()?;
     let today = save.career.current_day?;
     let first_day = today.saturating_sub(PROFIT_WEEK_DAYS);
-    Some(
-        garages
-            .iter()
-            .filter(|garage| garage.size == GarageSize::Large)
-            .map(|garage| GarageWeek {
-                name: garage_name(garage),
-                profit: garage
-                    .daily_profit
-                    .iter()
-                    .filter(|entry| (first_day..today).contains(&entry.day))
-                    .map(|entry| entry.profit)
-                    .sum(),
-            })
-            .collect(),
-    )
+    let mut weeks = garages
+        .iter()
+        .filter(|garage| garage.size == GarageSize::Large)
+        .map(|garage| GarageWeek {
+            name: garage_name(garage),
+            profit: garage
+                .daily_profit
+                .iter()
+                .filter(|entry| (first_day..today).contains(&entry.day))
+                .map(|entry| entry.profit)
+                .sum(),
+        })
+        .collect::<Vec<_>>();
+    // Most productive first.
+    weeks.sort_by(|left, right| {
+        right
+            .profit
+            .cmp(&left.profit)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    Some(weeks)
 }
 
 fn garage_name(garage: &Garage) -> String {
@@ -1339,6 +1568,11 @@ pub(crate) fn size_matters(save: &SaveGame) -> AchievementEvaluation {
 pub(crate) fn the_bigger_the_better(save: &SaveGame) -> AchievementEvaluation {
     let cargos = oversize_cargos(save);
     let current = cargos.len() as u32;
+    let missing = SPECIAL_TRANSPORT_CARGOES
+        .iter()
+        .map(|(id, _, _)| special_cargo_label(id))
+        .filter(|cargo| !cargos.contains(cargo))
+        .collect::<BTreeSet<_>>();
 
     AchievementEvaluation {
         status: status_from_progress(current, THE_BIGGER_THE_BETTER_TARGET_CARGOS),
@@ -1347,12 +1581,15 @@ pub(crate) fn the_bigger_the_better(save: &SaveGame) -> AchievementEvaluation {
             target: THE_BIGGER_THE_BETTER_TARGET_CARGOS,
             unit: "oversize cargoes",
         },
-        evidence: vec![AchievementEvidence {
-            label: "Oversize cargoes".to_string(),
-            value: summarize_set(&cargos, SUMMARY_EVIDENCE_LIMIT),
-            items: set_items(&cargos),
-            complete: current >= THE_BIGGER_THE_BETTER_TARGET_CARGOS,
-        }],
+        evidence: vec![
+            AchievementEvidence {
+                label: "Oversize cargoes".to_string(),
+                value: summarize_set(&cargos, SUMMARY_EVIDENCE_LIMIT),
+                items: set_items(&cargos),
+                complete: current >= THE_BIGGER_THE_BETTER_TARGET_CARGOS,
+            },
+            list_evidence("Not delivered yet", &missing),
+        ],
     }
 }
 
@@ -1423,20 +1660,23 @@ pub(crate) fn driver_exceptionnel(save: &SaveGame) -> AchievementEvaluation {
         .map(|entry| entry.special_route.as_str())
         .filter(|route| !route.is_empty())
         .collect::<BTreeSet<_>>();
-    let base = BASE_GAME_SPECIAL_ROUTES
+    let mut base = BTreeSet::new();
+    let mut dlc = BTreeSet::new();
+    let mut unrecognised = BTreeSet::new();
+    for route in &driven {
+        match classify_special_route(route) {
+            RouteKind::BaseGame(name) => base.insert(name),
+            RouteKind::Dlc(name) => dlc.insert(name),
+            RouteKind::Unrecognised => unrecognised.insert((*route).to_string()),
+        };
+    }
+    let missing = SPECIAL_ROUTES
         .iter()
-        .filter(|(id, _)| driven.contains(id))
-        .map(|(_, name)| (*name).to_string())
-        .collect::<BTreeSet<_>>();
-    let missing = BASE_GAME_SPECIAL_ROUTES
-        .iter()
-        .filter(|(id, _)| !driven.contains(id))
-        .map(|(_, name)| (*name).to_string())
-        .collect::<BTreeSet<_>>();
-    let other = driven
-        .iter()
-        .filter(|route| !BASE_GAME_SPECIAL_ROUTES.iter().any(|(id, _)| id == *route))
-        .map(|route| (*route).to_string())
+        .filter(|(id, _, _)| !driven.contains(id))
+        .filter_map(|(id, _, _)| match classify_special_route(id) {
+            RouteKind::BaseGame(name) => Some(name),
+            _ => None,
+        })
         .collect::<BTreeSet<_>>();
     let mut evaluation = set_achievement(
         &base,
@@ -1444,25 +1684,97 @@ pub(crate) fn driver_exceptionnel(save: &SaveGame) -> AchievementEvaluation {
         "base game routes",
         "Driven",
     );
-    evaluation.evidence.push(AchievementEvidence {
-        label: "Not driven yet".to_string(),
-        value: if missing.is_empty() {
-            "none".to_string()
-        } else {
-            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
-        },
-        items: set_items(&missing),
-        complete: missing.is_empty(),
-    });
-    if !other.is_empty() {
-        evaluation.evidence.push(AchievementEvidence {
-            label: "DLC routes (not counted)".to_string(),
-            value: summarize_set(&other, SUMMARY_EVIDENCE_LIMIT),
-            items: Vec::new(),
-            complete: false,
-        });
+    evaluation
+        .evidence
+        .push(list_evidence("Not driven yet", &missing));
+    if !dlc.is_empty() {
+        let mut row = list_evidence("Driven routes from DLC (not counted)", &dlc);
+        row.complete = false;
+        evaluation.evidence.push(row);
+    }
+    if !unrecognised.is_empty() {
+        let mut row = list_evidence("Unrecognised routes (not counted)", &unrecognised);
+        row.complete = false;
+        evaluation.evidence.push(row);
     }
     evaluation
+}
+
+enum RouteKind {
+    BaseGame(String),
+    Dlc(String),
+    Unrecognised,
+}
+
+/// Classifies a Special Transport route by its cities: base game when both
+/// are base-game cities. Routes missing from [`SPECIAL_ROUTES`] (added in a
+/// later game version) are matched by their ID's city abbreviations
+/// (`lux_lieg1`: `lux…`, `lieg…`) and count only when every matching city is
+/// a base-game city.
+fn classify_special_route(route: &str) -> RouteKind {
+    if let Some((_, from, to)) = SPECIAL_ROUTES.iter().find(|(id, _, _)| *id == route) {
+        let name = format!("{} – {}", city_name(from), city_name(to));
+        let base = [from, to]
+            .iter()
+            .all(|city| city_by_id(city).is_some_and(|city| city.dlc == BASE_GAME_DLC));
+        return if base {
+            RouteKind::BaseGame(name)
+        } else {
+            RouteKind::Dlc(name)
+        };
+    }
+    let abbreviations = route
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .split('_')
+        .collect::<Vec<_>>();
+    if abbreviations.len() != 2 {
+        return RouteKind::Unrecognised;
+    }
+    let matches = abbreviations
+        .iter()
+        .map(|abbreviation| {
+            CITIES
+                .iter()
+                .filter(|city| !abbreviation.is_empty() && city.id.starts_with(abbreviation))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    if matches.iter().any(Vec::is_empty) {
+        return RouteKind::Unrecognised;
+    }
+    if matches
+        .iter()
+        .all(|cities| cities.iter().all(|city| city.dlc == BASE_GAME_DLC))
+    {
+        let name = matches
+            .iter()
+            .map(|cities| {
+                cities
+                    .iter()
+                    .map(|city| city_label(city))
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
+            .collect::<Vec<_>>()
+            .join(" – ");
+        RouteKind::BaseGame(name)
+    } else {
+        RouteKind::Unrecognised
+    }
+}
+
+/// An evidence row listing `values`, or "none".
+fn list_evidence(label: &str, values: &BTreeSet<String>) -> AchievementEvidence {
+    AchievementEvidence {
+        label: label.to_string(),
+        value: if values.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(values, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: set_items(values),
+        complete: values.is_empty(),
+    }
 }
 
 pub(crate) fn volvo_trucks_lover(save: &SaveGame) -> AchievementEvaluation {
@@ -2101,7 +2413,9 @@ mod tests {
                 "head_hunter",
                 "i_am_a_gps",
                 "long_hauler",
+                "minimaxer",
                 "national_company",
+                "parking_challenge",
                 "pathfinder",
                 "performance_optimizer",
                 "profit_hunter",
@@ -2127,6 +2441,8 @@ mod tests {
                 "go_nuclear",
                 "iberian_pilgrimage",
                 "imperator",
+                "job_is_only_worth_it_if_its_done_well",
+                "just_in_time",
                 "mass_to_don",
                 "miner",
                 "multitalented_driver",
@@ -2191,6 +2507,12 @@ mod tests {
             .items
             .contains(&"Giant Silo (silo)".to_string()));
         assert!(bigger.evidence[0].items.contains(&"oversize_0".to_string()));
+        // The known cargo list shows what is still missing.
+        assert_eq!(bigger.evidence[1].label, "Not delivered yet");
+        assert_eq!(bigger.evidence[1].items.len(), 9);
+        assert!(!bigger.evidence[1]
+            .items
+            .contains(&"Giant Silo (silo)".to_string()));
         assert!(!bigger.evidence[0]
             .items
             .contains(&"Haul Truck Chassis (dumper)".to_string()));
@@ -2283,11 +2605,45 @@ mod tests {
             driver.evidence[0].items,
             vec!["Berlin – Szczecin", "Luxembourg – Liège"]
         );
-        assert_eq!(driver.evidence[1].items.len(), 15);
+        // 20 base-game routes (both cities in the base game), 2 driven.
+        assert_eq!(driver.evidence[1].label, "Not driven yet");
+        assert_eq!(driver.evidence[1].items.len(), 18);
         assert!(driver.evidence[1]
             .items
-            .contains(&"Munich – Salzburg".to_string()));
-        assert_eq!(driver.evidence[2].value, "nic_nic1, stav_osl1");
+            .contains(&"München – Innsbruck".to_string()));
+        assert!(driver.evidence[1]
+            .items
+            .contains(&"Kassel – Hamburg".to_string()));
+        // Verona – Parma: Parma is an Italia DLC city.
+        assert!(!driver.evidence[1]
+            .items
+            .iter()
+            .any(|route| route.contains("Parma")));
+        assert_eq!(
+            driver.evidence[2].label,
+            "Driven routes from DLC (not counted)"
+        );
+        assert_eq!(
+            driver.evidence[2].items,
+            vec!["Nice – Nice", "Stavanger – Oslo"]
+        );
+        assert!(!driver.evidence[2].complete);
+
+        // Routes added after the known list are matched by their city
+        // abbreviations, and only count when every match is a base-game city.
+        let save = save_with_entries(vec![
+            route("dort_koln2"),
+            route("ber_ham1"),
+            route("xyz_abc1"),
+        ]);
+        let driver = achievement_by_id(&save, "driver_exceptionnel");
+        assert_eq!(driver.evidence[0].items, vec!["Dortmund – Köln"]);
+        // "ber" also matches Bergen (Scandinavia), so it is not counted.
+        assert_eq!(
+            driver.evidence[2].label,
+            "Unrecognised routes (not counted)"
+        );
+        assert_eq!(driver.evidence[2].items, vec!["ber_ham1", "xyz_abc1"]);
 
         let routes = [
             "lux_lieg1",
@@ -2468,6 +2824,128 @@ mod tests {
         }
     }
 
+    fn job(planned_km: u32, damage: f64, fines: u32, time_left: i64) -> DeliveryLogEntry {
+        DeliveryLogEntry {
+            planned_distance_km: planned_km,
+            cargo_damage: damage,
+            fines,
+            time_left_minutes: time_left,
+            ..entry("cargo.gravel", planned_km, "vehicle.man.tgx", "compn")
+        }
+    }
+
+    #[test]
+    fn evaluates_perfect_delivery_of_1000_km() {
+        let save = save_with_entries(vec![
+            // Each misses one condition: fined, damaged, late, too short.
+            job(1_091, 0.0, 800, 868),
+            job(1_200, 0.016, 0, 10),
+            job(1_300, 0.0, 0, -313),
+            job(999, 0.0, 0, 50),
+        ]);
+        let perfect = achievement_by_id(&save, "job_is_only_worth_it_if_its_done_well");
+        assert_eq!(perfect.status, AchievementStatus::InProgress);
+        assert_eq!(perfect.evidence[0].value, "missing");
+
+        // On time with no minutes to spare still counts; so does a World of
+        // Trucks job marked in time (1).
+        let save = save_with_entries(vec![
+            job(1_000, 0.0, 0, 0),
+            DeliveryLogEntry {
+                job_type: "on_compn".to_string(),
+                ..job(1_400, 0.0, 0, 1)
+            },
+        ]);
+        let perfect = achievement_by_id(&save, "job_is_only_worth_it_if_its_done_well");
+        assert_eq!(perfect.status, AchievementStatus::Complete);
+        assert_eq!(perfect.progress.current, 2);
+    }
+
+    #[test]
+    fn evaluates_just_in_time_for_urgent_jobs() {
+        let urgent = |planned_km: u32, time_left: i64| DeliveryLogEntry {
+            urgency: 2,
+            ..job(planned_km, 0.0, 0, time_left)
+        };
+        let save = save_with_entries(vec![
+            urgent(564, 80),
+            urgent(797, -153),
+            urgent(549, 10),
+            // Important, not urgent.
+            DeliveryLogEntry {
+                urgency: 1,
+                ..job(800, 0.0, 0, 5)
+            },
+            // World of Trucks jobs store 1 for "in time", not minutes.
+            DeliveryLogEntry {
+                job_type: "on_compn".to_string(),
+                ..urgent(900, 1)
+            },
+        ]);
+        assert_eq!(
+            achievement_by_id(&save, "just_in_time").status,
+            AchievementStatus::InProgress
+        );
+
+        let mut save = save;
+        save.delivery_log.entries.push(urgent(600, 29));
+        let just_in_time = achievement_by_id(&save, "just_in_time");
+        assert_eq!(just_in_time.status, AchievementStatus::Complete);
+        assert_eq!(just_in_time.progress.current, 1);
+        assert!(just_in_time.evidence[0].items[0].ends_with("600 km, 29 min left"));
+    }
+
+    #[test]
+    fn evaluates_parking_challenge_from_normal_and_tough_parking() {
+        let parked = |parking: u32| DeliveryLogEntry {
+            parking,
+            ..job(300, 0.0, 0, 60)
+        };
+        let mut entries = (0..10).map(|_| parked(3)).collect::<Vec<_>>();
+        entries.extend((0..9).map(|_| parked(2)));
+        entries.extend((0..5).map(|_| parked(1)));
+        let save = save_with_entries(entries);
+
+        let parking = achievement_by_id(&save, "parking_challenge");
+        assert_eq!(parking.progress.current, 19);
+        assert_eq!(parking.status, AchievementStatus::InProgress);
+        assert_eq!(parking.evidence[0].value, "10 deliveries");
+        assert_eq!(parking.evidence[2].value, "5 deliveries, not counted");
+
+        let mut save = save;
+        save.delivery_log.entries.push(parked(2));
+        assert_eq!(
+            achievement_by_id(&save, "parking_challenge").status,
+            AchievementStatus::Complete
+        );
+    }
+
+    #[test]
+    fn evaluates_minimaxer_over_consecutive_jobs_below_10000_km() {
+        let xp_job = |xp: u32, distance_km: u32| DeliveryLogEntry {
+            xp,
+            ..entry("cargo.gravel", distance_km, "vehicle.man.tgx", "compn")
+        };
+        let save = save_with_entries(vec![
+            xp_job(9_000, 4_000),
+            xp_job(6_000, 3_000),
+            // Free roam is not a job.
+            DeliveryLogEntry {
+                xp: 50,
+                ..entry("", 100, "", "freerm")
+            },
+            xp_job(5_000, 2_999),
+            xp_job(15_000, 9_999),
+        ]);
+
+        let minimaxer = achievement_by_id(&save, "minimaxer");
+
+        // 9,000 + 6,000 + 5,000 over 9,999 km.
+        assert_eq!(minimaxer.status, AchievementStatus::Complete);
+        assert_eq!(minimaxer.progress.current, 20_000);
+        assert_eq!(minimaxer.evidence[0].value, "20000 XP over 3 jobs, 9999 km");
+    }
+
     #[test]
     fn evaluates_cattle_drive_to_scandinavia_dlc_cities() {
         let to = |company: &str, cargo: &str| DeliveryLogEntry {
@@ -2613,10 +3091,16 @@ mod tests {
         assert_eq!(elite.progress.current, 5);
         assert_eq!(elite.status, AchievementStatus::Complete);
         assert_eq!(elite.evidence[0].items.len(), 10);
+        // Sorted from most to least productive.
         assert_eq!(
             elite.evidence[0].items[0],
+            "full_0 100% · 300006 EUR profit in 7 days"
+        );
+        assert_eq!(
+            elite.evidence[0].items[5],
             "Stockholm 63% · 190296 EUR profit in 7 days"
         );
+        assert!(elite.evidence[0].items[9].starts_with("half_3 50%"));
 
         // (63 + 5 × 100 + 4 × 50) / 10 = 76%.
         let optimizer = achievement_by_id(&save, "performance_optimizer");

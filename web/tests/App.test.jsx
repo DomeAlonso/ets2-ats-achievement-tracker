@@ -384,6 +384,12 @@ test("Tracker can render analysis", async () => {
   expect(
     within(untracked).getByText(/Needs owned garage data/),
   ).toBeInTheDocument();
+  // Explanations are shown in full, not cut to one line.
+  expect(
+    within(untracked)
+      .getByText(/Needs owned garage data/)
+      .closest("li"),
+  ).toHaveClass("evidence-full");
 });
 
 test("Tracker groups achievements by set and expands them on click", async () => {

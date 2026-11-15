@@ -18,6 +18,11 @@ const XP_PARAM: usize = 4;
 const REVENUE_PARAM: usize = 5;
 const DISTANCE_PARAM: usize = 6;
 const CARGO_DAMAGE_PARAM: usize = 7;
+const TIME_LEFT_PARAM: usize = 8;
+const URGENCY_PARAM: usize = 9;
+const PARKING_PARAM: usize = 11;
+const FINES_PARAM: usize = 14;
+const PLANNED_DISTANCE_PARAM: usize = 17;
 const TRUCK_PARAM: usize = 16;
 const JOB_TYPE_PARAM: usize = 18;
 // Only present in newer saves.
@@ -170,6 +175,16 @@ pub struct DeliveryLogEntry {
     /// Special Transport route ID, empty for other jobs.
     pub special_route: String,
     pub cargo_mass_kg: Option<f64>,
+    /// In-game minutes left when delivered; negative when late. World of
+    /// Trucks jobs (`on_compn`) only store 1 (in time) or -1 (late).
+    pub time_left_minutes: i64,
+    /// 0 standard, 1 important, 2 urgent.
+    pub urgency: u32,
+    /// Trailer delivery option: 1 easy, 2 normal, 3 tough.
+    pub parking: u32,
+    /// Fines during the job, in EUR.
+    pub fines: u32,
+    pub planned_distance_km: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -338,6 +353,11 @@ impl DeliveryLogEntry {
                 .get(CARGO_MASS_PARAM)
                 .and_then(|mass| mass.parse::<f64>().ok())
                 .filter(|mass| *mass >= 0.0),
+            time_left_minutes: params[TIME_LEFT_PARAM].parse().unwrap_or(0),
+            urgency: params[URGENCY_PARAM].parse().unwrap_or(0),
+            parking: params[PARKING_PARAM].parse().unwrap_or(0),
+            fines: params[FINES_PARAM].parse().unwrap_or(0),
+            planned_distance_km: params[PLANNED_DISTANCE_PARAM].parse().unwrap_or(0),
         })
     }
 
@@ -787,6 +807,11 @@ mod tests {
         assert_eq!(entry.cargo_damage, 0.012);
         assert_eq!(entry.special_route, "lux_lieg1");
         assert_eq!(entry.cargo_mass_kg, Some(30639.299));
+        assert_eq!(entry.time_left_minutes, 997);
+        assert_eq!(entry.urgency, 0);
+        assert_eq!(entry.parking, 1);
+        assert_eq!(entry.fines, 800);
+        assert_eq!(entry.planned_distance_km, 668);
         assert_eq!(company_city(&entry.destination_company), "sevilla");
     }
 

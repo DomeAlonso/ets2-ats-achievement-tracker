@@ -311,6 +311,17 @@ progress {
   white-space: nowrap;
 }
 
+.evidence-list li.evidence-full {
+  grid-column: 1 / -1;
+  align-items: start;
+}
+
+.evidence-list li.evidence-full .evidence-value {
+  overflow: visible;
+  text-align: left;
+  white-space: normal;
+}
+
 .evidence-summary {
   min-width: 0;
   border: 1px solid #c8d0dc;

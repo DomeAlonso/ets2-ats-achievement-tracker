@@ -223,7 +223,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "job_urgent",
         display_name: "Just in Time!",
         description: "Take an urgent delivery for a minimum of 550 km and complete it with less than 30 minutes remaining",
-        tracking: not_tracked("The delivery log seems to record job urgency, but which field it is has not been confirmed yet."),
+        tracking: tracked(just_in_time),
     },
     AchievementDefinition {
         id: "long_hauler",
@@ -263,7 +263,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "perfect_delivery",
         display_name: "Job Is Only Worth It If It's Done Well!",
         description: "Complete a perfect delivery (no damage, no fines, in-time) for a job that is at least 1,000 km",
-        tracking: not_tracked("Needs per-job fines; the delivery log records damage and lateness, but no confirmed fine field from the save, which the tracker does not read yet."),
+        tracking: tracked(job_is_only_worth_it_if_its_done_well),
     },
     AchievementDefinition {
         id: "careerist",
@@ -271,7 +271,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "5_jobs_in_a_row",
         display_name: "Careerist",
         description: "Complete 5 jobs in a row - in-time, without taking any damage to cargo and without using autoparking",
-        tracking: not_tracked("The delivery log seems to record autoparking use, but which field it is has not been confirmed yet."),
+        tracking: not_tracked("The delivery log seems to record autoparking use (possibly params[10]), but which field it is has not been confirmed yet."),
     },
     AchievementDefinition {
         id: "friends_are_always_here_to_help_you",
@@ -279,7 +279,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "use_automatic_parking",
         display_name: "Friends Are Always Here to Help You",
         description: "Use automatic parking",
-        tracking: not_tracked("The delivery log seems to record autoparking use, but which field it is has not been confirmed yet."),
+        tracking: not_tracked("The delivery log seems to record autoparking use (possibly params[10]), but which field it is has not been confirmed yet."),
     },
     AchievementDefinition {
         id: "all_is_possible",
@@ -295,7 +295,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "jobs_20k_xp",
         display_name: "Minimaxer",
         description: "Gain 20,000 XP for several consecutive jobs with the total distance below 10,000 km",
-        tracking: not_tracked("The delivery log seems to record XP per job, but which field it is has not been confirmed yet."),
+        tracking: tracked(minimaxer),
     },
     AchievementDefinition {
         id: "honey_im_home",
@@ -375,7 +375,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "unload_difficulty",
         display_name: "Parking Challenge",
         description: "Complete 20 deliveries choosing the trailer delivery option which requires reversing",
-        tracking: not_tracked("The delivery log seems to record the chosen trailer delivery (parking) option, but which field it is has not been confirmed yet."),
+        tracking: tracked(parking_challenge),
     },
     AchievementDefinition {
         id: "odyssean_voyager",
