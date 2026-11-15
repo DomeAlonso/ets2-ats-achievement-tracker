@@ -36,7 +36,60 @@ vi.mock("../src/decode.worker?worker", () => {
             const bytes = new Uint8Array(data.buffer);
             const text = new TextDecoder().decode(bytes);
 
-            if (text === "BSII-old") {
+            if (text === "BSII-cities") {
+              this.dispatchMessage({
+                data: {
+                  type: "analysis-success",
+                  result: JSON.stringify({
+                    analytics: {
+                      delivery_count: 0,
+                      total_distance_km: 0,
+                      total_revenue: 0,
+                      unique_cargos: [],
+                      unique_companies: [],
+                      job_type_breakdown: {},
+                      brand_distance_km: {},
+                      cargo_category_coverage: {},
+                    },
+                    achievement_groups: [
+                      {
+                        id: "greece",
+                        name: "Greece Map Expansion Achievements",
+                      },
+                    ],
+                    achievements: [
+                      {
+                        id: "odyssean_voyager",
+                        group: "greece",
+                        display_name: "Odyssean Voyager",
+                        description: "Discover at least 12 cities in Greece",
+                        status: "in_progress",
+                        progress: { current: 2, target: 12, unit: "cities" },
+                        evidence: [
+                          {
+                            label: "Discovered",
+                            value: "Αθήνα (athens), Λαμία (lamia)",
+                            items: ["Αθήνα (athens)", "Λαμία (lamia)"],
+                            complete: false,
+                          },
+                          {
+                            label: "Not discovered yet",
+                            value:
+                              "Καβάλα (kavala), Ηράκλειο (heraklion), Πάτρα (patra)",
+                            items: [
+                              "Καβάλα (kavala)",
+                              "Ηράκλειο (heraklion)",
+                              "Πάτρα (patra)",
+                            ],
+                            complete: false,
+                          },
+                        ],
+                      },
+                    ],
+                  }),
+                },
+              });
+            } else if (text === "BSII-old") {
               this.dispatchMessage({
                 data: {
                   type: "analysis-success",
@@ -452,6 +505,39 @@ test("Test Drive Limited highlights brands that reached 999 km", async () => {
   // Other cards do not highlight their completed evidence rows.
   const longHauler = screen.getByText("Long Hauler").closest("article");
   expect(longHauler.querySelector(".evidence-complete")).toBeNull();
+});
+
+test("City discovery cards list discovered and undiscovered cities", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII-cities"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "View 3 cities not discovered yet" }),
+  );
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("heading", { name: "Cities not discovered yet" }),
+  ).toBeInTheDocument();
+  expect(dialog).toHaveTextContent("3 cities not discovered yet");
+  expect(dialog).toHaveTextContent("Καβάλα (kavala)");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "View 2 discovered cities" }),
+  );
+  expect(
+    within(screen.getByRole("dialog")).getByRole("heading", {
+      name: "Discovered cities",
+    }),
+  ).toBeInTheDocument();
 });
 
 test("Tracker warns when the decoder predates achievement sets", async () => {

@@ -555,7 +555,7 @@ function AchievementList({
           )}
           <AchievementEvidenceList
             evidence={achievement.evidence}
-            itemLabel={evidenceListItemLabel(achievement.id)}
+            itemLabel={EVIDENCE_ITEM_LABELS[achievement.id] ?? null}
             highlightComplete={HIGHLIGHT_COMPLETE_EVIDENCE.has(achievement.id)}
           />
         </article>
@@ -570,9 +570,11 @@ function AchievementEvidenceList({
   highlightComplete,
 }: {
   evidence: AchievementEvidence[];
-  itemLabel: string | null;
+  itemLabel: EvidenceItemLabel | null;
   highlightComplete: boolean;
 }) {
+  const labelFor = (item: AchievementEvidence) =>
+    evidenceListItemLabel(itemLabel, item.label);
   const [expandedEvidence, setExpandedEvidence] =
     useState<AchievementEvidence | null>(null);
   const expandedItems = expandedEvidence?.items ?? [];
@@ -582,7 +584,8 @@ function AchievementEvidenceList({
       <ul className="evidence-list">
         {evidence.map((item) => {
           const items = item.items ?? [];
-          const hasList = itemLabel !== null && items.length > 1;
+          const listLabel = labelFor(item);
+          const hasList = listLabel !== null && items.length > 1;
           const highlighted = highlightComplete && item.complete;
           return (
             <li
@@ -603,7 +606,7 @@ function AchievementEvidenceList({
                   className="evidence-summary"
                   onClick={() => setExpandedEvidence(item)}
                 >
-                  View {items.length} {itemLabel}
+                  View {items.length} {listLabel}
                 </button>
               ) : (
                 <span className="evidence-value">{item.value}</span>
@@ -631,7 +634,7 @@ function AchievementEvidenceList({
                   {evidenceListTitle(itemLabel, expandedEvidence, evidence)}
                 </h4>
                 <p>
-                  {expandedItems.length} {itemLabel ?? "items"}
+                  {expandedItems.length} {labelFor(expandedEvidence) ?? "items"}
                 </p>
               </div>
               <button
@@ -667,7 +670,16 @@ function statusLabel(status: AchievementStatus) {
 
 // What the "View N …" lists contain. Each list only holds what has been
 // collected so far, so the wording says so.
-const EVIDENCE_ITEM_LABELS: Record<string, string> = {
+// A single label, or one per evidence row (keyed by the row's label) when a
+// card has several lists.
+type EvidenceItemLabel = string | Record<string, string>;
+
+const CITY_LIST_LABELS = {
+  Discovered: "discovered cities",
+  "Not discovered yet": "cities not discovered yet",
+};
+
+const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   reliable_contractor: "companies worked with",
   experience_beats_all: "delivered cargoes",
   all_is_possible: "completed cargoes",
@@ -685,16 +697,16 @@ const EVIDENCE_ITEM_LABELS: Record<string, string> = {
   go_nuclear: "cities delivered to",
   whatever_floats_your_boat: "cities delivered to",
   captain: "cities delivered to",
-  odyssean_voyager: "discovered cities",
-  bon_voyage: "discovered cities",
-  all_around_the_isle_of_beauty: "discovered cities",
-  balkan_explorer: "discovered cities",
-  sightseer: "discovered cities",
-  baltic_tourist: "discovered cities",
-  conquistador: "discovered cities",
-  imperator: "discovered cities",
-  all_around_the_blue_island: "discovered cities",
-  road_to_the_adriatics: "discovered cities",
+  odyssean_voyager: CITY_LIST_LABELS,
+  bon_voyage: CITY_LIST_LABELS,
+  all_around_the_isle_of_beauty: CITY_LIST_LABELS,
+  balkan_explorer: CITY_LIST_LABELS,
+  sightseer: CITY_LIST_LABELS,
+  baltic_tourist: CITY_LIST_LABELS,
+  conquistador: CITY_LIST_LABELS,
+  imperator: CITY_LIST_LABELS,
+  all_around_the_blue_island: CITY_LIST_LABELS,
+  road_to_the_adriatics: CITY_LIST_LABELS,
   national_company: "large garages in that country",
   successfully_docked: "used ports",
   working_with_the_elite: "large garages",
@@ -702,29 +714,44 @@ const EVIDENCE_ITEM_LABELS: Record<string, string> = {
   smooth_start: "coach jobs at 90% or more",
   seasoned_traveller: "own-coach jobs",
   rule_of_threes: "qualifying coach jobs",
+  cattle_drive: "cattle deliveries",
+  miner: {
+    "Delivered to": "quarries delivered to",
+    "Not delivered to yet": "quarries not delivered to yet",
+  },
 };
 
 // Achievements whose evidence rows turn green once each row's goal is met.
 const HIGHLIGHT_COMPLETE_EVIDENCE = new Set(["test_drive_limited"]);
 
-function evidenceListItemLabel(achievementId: string) {
-  return EVIDENCE_ITEM_LABELS[achievementId] ?? null;
+function evidenceListItemLabel(
+  itemLabel: EvidenceItemLabel | null,
+  evidenceLabel: string,
+) {
+  if (itemLabel === null || typeof itemLabel === "string") {
+    return itemLabel;
+  }
+  return itemLabel[evidenceLabel] ?? null;
 }
 
 function evidenceListTitle(
-  itemLabel: string | null,
+  itemLabel: EvidenceItemLabel | null,
   item: AchievementEvidence,
   allEvidence: AchievementEvidence[],
 ) {
-  if (itemLabel === null) {
+  const label = evidenceListItemLabel(itemLabel, item.label);
+  if (label === null) {
     return item.label;
   }
-  const title = itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1);
-  // Several lists on one card (e.g. one per trailer type): name the row too.
+  const title = label.charAt(0).toUpperCase() + label.slice(1);
+  // One shared label for several lists (e.g. one per trailer type): name
+  // the row too. Per-row labels already say which list it is.
   const listCount = allEvidence.filter(
     (evidence) => (evidence.items ?? []).length > 1,
   ).length;
-  return listCount > 1 ? `${title}: ${item.label}` : title;
+  return typeof itemLabel === "string" && listCount > 1
+    ? `${title}: ${item.label}`
+    : title;
 }
 
 function formatCurrency(value: number) {
