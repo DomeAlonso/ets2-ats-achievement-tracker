@@ -439,7 +439,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "st_all_routes",
         display_name: "Driver Exceptionnel",
         description: "Complete deliveries on at least 10 oversize routes in base game (requires Special Transport DLC)",
-        tracking: not_tracked("Needs a list of base-game Special Transport routes (routes driven are in the save), which the tracker does not have yet."),
+        tracking: tracked(driver_exceptionnel),
     },
     AchievementDefinition {
         id: "not_a_big_problem",
@@ -463,7 +463,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "st_cat_785c",
         display_name: "Big Brother",
         description: "Complete delivery of the Haul Truck Chassis (requires Special Transport DLC)",
-        tracking: not_tracked("Needs the Haul Truck Chassis cargo ID, which the tracker does not have yet."),
+        tracking: tracked(big_brother),
     },
     AchievementDefinition {
         id: "not_a_canoe",
@@ -479,7 +479,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "st_mass",
         display_name: "Mass-to-don",
         description: "Deliver at least 195 tons of oversized cargo in just 3 consecutive deliveries (requires Special Transport DLC)",
-        tracking: not_tracked("The delivery log seems to record cargo mass, but which field it is has not been confirmed yet."),
+        tracking: tracked(mass_to_don),
     },
     AchievementDefinition {
         id: "time_for_big_hauling",

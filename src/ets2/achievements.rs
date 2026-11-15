@@ -33,6 +33,45 @@ const SUMMARY_EVIDENCE_LIMIT: usize = 30;
 /// `job_type` of Special Transport (oversize) jobs in the delivery log.
 const OVERSIZE_JOB_TYPE: &str = "spec_oversize";
 const THE_BIGGER_THE_BETTER_TARGET_CARGOS: u32 = 10;
+const MASS_TO_DON_TARGET_TONNES: u32 = 195;
+const DRIVER_EXCEPTIONNEL_TARGET_ROUTES: u32 = 10;
+const FREE_ROAM_JOB_TYPE: &str = "freerm";
+/// Special Transport DLC cargo: ID, in-game name, mass in tonnes.
+const SPECIAL_TRANSPORT_CARGOES: [(&str, &str, u32); 11] = [
+    ("boiler_parts", "Boiler Part", 45),
+    ("condensator", "Industrial Condenser", 60),
+    ("dumper", "Haul Truck Chassis", 55),
+    ("dumper_tire", "Huge Tyres", 20),
+    ("ex_bucket", "Excavator Bucket", 25),
+    ("heat_exch", "Heat Exchanger", 70),
+    ("lattice", "Construction Staircase", 50),
+    ("mystery_box", "High-Tech Device / Massive Tech Part", 44),
+    ("mystery_cyl", "Massive Tech Part / High-Tech Device", 45),
+    ("pilot_boat", "Service Boat", 25),
+    ("silo", "Giant Silo", 40),
+];
+/// Base-game Special Transport routes (`route_data.<id>` in the save's
+/// `oversize_offer_ctrl`). The only Munich route in the save is
+/// `munch_inns1`; it stands for the Munich route in the base-game list.
+const BASE_GAME_SPECIAL_ROUTES: [(&str, &str); 17] = [
+    ("lux_lieg1", "Luxembourg – Liège"),
+    ("shef_bir1", "Sheffield – Birmingham"),
+    ("bre_tra1", "Bremen – Travemünde"),
+    ("ber_szcz1", "Berlin – Szczecin"),
+    ("reim_stra1", "Reims – Strasbourg"),
+    ("dort_hann1", "Dortmund – Hannover"),
+    ("prag_nurn1", "Praha – Nürnberg"),
+    ("glas_aber1", "Glasgow – Aberdeen"),
+    ("munch_inns1", "Munich – Salzburg"),
+    ("koln_amster1", "Cologne – Amsterdam"),
+    ("brus_amster1", "Brussel – Amsterdam"),
+    ("lin_br1", "Linz – Brno"),
+    ("lon_fel1", "London – Felixstowe"),
+    ("dij_gen1", "Dijon – Genève"),
+    ("car_bir1", "Cardiff – Birmingham"),
+    ("ply_dov1", "Plymouth – Dover"),
+    ("brat_graz1", "Bratislava – Graz"),
+];
 const TURKISH_DELIGHT_TARGET_DELIVERIES: u32 = 3;
 const TURKISH_DELIGHT_MIN_DISTANCE_KM: u32 = 2500;
 
@@ -59,9 +98,11 @@ const SWIMMING_IN_SUCCESS_TARGET_PROFIT: u32 = 450_000;
 const WORKING_WITH_THE_ELITE_TARGET_GARAGES: u32 = 5;
 const PERFORMANCE_OPTIMIZER_TARGET_GARAGES: u32 = 10;
 const PERFORMANCE_OPTIMIZER_TARGET_AVERAGE: f64 = 0.75;
-/// `garage.productivity` is an f32 fraction; 1.0 is 100%.
-const FULL_PRODUCTIVITY: f64 = 0.9999;
+/// Garage productivity as the game shows it: profit over the last 7 full
+/// days (today excluded) against 300,000 EUR, the 100% mark for a large
+/// garage. Matches the in-game percentages; `garage.productivity` does not.
 const PROFIT_WEEK_DAYS: u32 = 7;
+const FULL_PRODUCTIVITY_WEEK_PROFIT: i64 = 300_000;
 const SMOOTH_START_TARGET_SATISFACTION: f64 = 0.9;
 const SEASONED_TRAVELLER_TARGET_KM: u32 = 5_000;
 const RULE_OF_THREES_TARGET_JOBS: u32 = 3;
@@ -79,6 +120,21 @@ const CORSICA_CITIES: [&str; 6] = [
     "porto_vecchi",
 ];
 const SARDINIA_CITIES: [&str; 3] = ["cagliari", "olbia", "sassari"];
+/// `dlc` of Scandinavia DLC cities in the city list (`dlc_north` in cities_by_dlc.json).
+const SCANDINAVIA_DLC: &str = "scandinavia";
+const CATTLE_CARGO: &str = "live_cattle";
+/// The seven Scandinavia DLC quarries (`company_def` per city). `ms_stein` also
+/// has a base-game quarry in Glasgow, which does not count.
+const SCANDINAVIA_QUARRIES: [(&str, &str); 7] = [
+    ("ms_stein", "kristiansand"),
+    ("ms_stein", "oslo"),
+    ("ms_stein", "stavanger"),
+    ("nord_sten", "jonkoping"),
+    ("nord_sten", "kalmar"),
+    ("nord_sten", "linkoping"),
+    ("nord_sten", "vaxjo"),
+];
+const MINER_TARGET_QUARRIES: u32 = 3;
 const HEAD_HUNTER_TARGET_AGENCIES: u32 = 40;
 const PROPERTY_MAGNATE_TARGET_GARAGES: u32 = 30;
 // Company/city IDs below were checked against a 1.5x save's company list.
@@ -476,7 +532,7 @@ fn discovered_cities(save: &SaveGame, scope: CityScope, target: u32) -> Achievem
         } else {
             summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
         },
-        items: Vec::new(),
+        items: set_items(&missing),
         complete: missing.is_empty(),
     });
     evaluation
@@ -520,6 +576,91 @@ pub(crate) fn all_around_the_blue_island(save: &SaveGame) -> AchievementEvaluati
 
 pub(crate) fn road_to_the_adriatics(save: &SaveGame) -> AchievementEvaluation {
     discovered_cities(save, CityScope::Dlc("west_balkans"), 20)
+}
+
+// ---- Scandinavia deliveries -------------------------------------------------
+
+pub(crate) fn cattle_drive(save: &SaveGame) -> AchievementEvaluation {
+    let deliveries = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter(|entry| cargo_id(&entry.cargo) == CATTLE_CARGO)
+        .filter(|entry| {
+            city_by_id(company_city(&entry.destination_company))
+                .is_some_and(|city| city.dlc == SCANDINAVIA_DLC)
+        })
+        .map(|entry| {
+            format!(
+                "{} → {}, {} km",
+                city_name(company_city(&entry.source_company)),
+                city_name(company_city(&entry.destination_company)),
+                entry.distance_km
+            )
+        })
+        .collect::<Vec<_>>();
+    let current = deliveries.len() as u32;
+
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current,
+            target: 1,
+            unit: "deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Cattle to Scandinavia".to_string(),
+            value: summarize_list(&deliveries),
+            items: deliveries.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+pub(crate) fn miner(save: &SaveGame) -> AchievementEvaluation {
+    let delivered = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            let company = company_id(&entry.destination_company);
+            let city = company_city(&entry.destination_company);
+            SCANDINAVIA_QUARRIES
+                .contains(&(company, city))
+                .then(|| quarry_label(company, city))
+        })
+        .collect::<BTreeSet<_>>();
+    let missing = SCANDINAVIA_QUARRIES
+        .iter()
+        .map(|(company, city)| quarry_label(company, city))
+        .filter(|quarry| !delivered.contains(quarry))
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(
+        &delivered,
+        MINER_TARGET_QUARRIES,
+        "quarries",
+        "Delivered to",
+    );
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Not delivered to yet".to_string(),
+        value: if missing.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: set_items(&missing),
+        complete: missing.is_empty(),
+    });
+    evaluation
+}
+
+fn quarry_label(company: &str, city: &str) -> String {
+    let name = match company {
+        "ms_stein" => "MS Stein",
+        "nord_sten" => "Nordic Stenbrott",
+        other => other,
+    };
+    format!("{name} ({})", city_name(city))
 }
 
 // ---- Garages and company profit -------------------------------------------
@@ -624,17 +765,14 @@ pub(crate) fn swimming_in_success(save: &SaveGame) -> AchievementEvaluation {
 }
 
 pub(crate) fn working_with_the_elite(save: &SaveGame) -> AchievementEvaluation {
-    let Some(large) = large_garages(save) else {
+    let Some(large) = large_garage_weeks(save) else {
         return missing_data(WORKING_WITH_THE_ELITE_TARGET_GARAGES, "garages", "Garages");
     };
     let full = large
         .iter()
-        .filter(|garage| garage.productivity >= FULL_PRODUCTIVITY)
+        .filter(|week| week.profit >= FULL_PRODUCTIVITY_WEEK_PROFIT)
         .count() as u32;
-    let summaries = large
-        .iter()
-        .map(|garage| garage_productivity_summary(save, garage))
-        .collect::<Vec<_>>();
+    let summaries = large.iter().map(GarageWeek::summary).collect::<Vec<_>>();
 
     AchievementEvaluation {
         status: status_from_progress(full, WORKING_WITH_THE_ELITE_TARGET_GARAGES),
@@ -653,7 +791,7 @@ pub(crate) fn working_with_the_elite(save: &SaveGame) -> AchievementEvaluation {
 }
 
 pub(crate) fn performance_optimizer(save: &SaveGame) -> AchievementEvaluation {
-    let Some(large) = large_garages(save) else {
+    let Some(large) = large_garage_weeks(save) else {
         return missing_data(PERFORMANCE_OPTIMIZER_TARGET_GARAGES, "garages", "Garages");
     };
     let count = large.len() as u32;
@@ -661,14 +799,11 @@ pub(crate) fn performance_optimizer(save: &SaveGame) -> AchievementEvaluation {
     let average = if large.is_empty() {
         0.0
     } else {
-        large.iter().map(|garage| garage.productivity).sum::<f64>() / large.len() as f64
+        large.iter().map(GarageWeek::productivity).sum::<f64>() / large.len() as f64
     };
     let enough = count >= PERFORMANCE_OPTIMIZER_TARGET_GARAGES;
     let average_met = average >= PERFORMANCE_OPTIMIZER_TARGET_AVERAGE;
-    let summaries = large
-        .iter()
-        .map(|garage| garage_productivity_summary(save, garage))
-        .collect::<Vec<_>>();
+    let summaries = large.iter().map(GarageWeek::summary).collect::<Vec<_>>();
 
     AchievementEvaluation {
         status: if enough && average_met {
@@ -705,13 +840,49 @@ pub(crate) fn performance_optimizer(save: &SaveGame) -> AchievementEvaluation {
     }
 }
 
-fn large_garages(save: &SaveGame) -> Option<Vec<&Garage>> {
-    save.career.garages.as_ref().map(|garages| {
+/// A large garage's profit over the last 7 full days.
+struct GarageWeek {
+    name: String,
+    profit: i64,
+}
+
+impl GarageWeek {
+    fn productivity(&self) -> f64 {
+        self.profit as f64 / FULL_PRODUCTIVITY_WEEK_PROFIT as f64
+    }
+
+    /// "Stockholm 63% · 190296 EUR profit in 7 days"
+    fn summary(&self) -> String {
+        format!(
+            "{} {:.0}% · {} EUR profit in {PROFIT_WEEK_DAYS} days",
+            self.name,
+            self.productivity() * 100.0,
+            self.profit
+        )
+    }
+}
+
+/// Large garages with their last-7-days profit; `None` without garages or
+/// without the in-game day.
+fn large_garage_weeks(save: &SaveGame) -> Option<Vec<GarageWeek>> {
+    let garages = save.career.garages.as_ref()?;
+    let today = save.career.current_day?;
+    let first_day = today.saturating_sub(PROFIT_WEEK_DAYS);
+    Some(
         garages
             .iter()
             .filter(|garage| garage.size == GarageSize::Large)
-            .collect()
-    })
+            .map(|garage| GarageWeek {
+                name: garage_name(garage),
+                profit: garage
+                    .daily_profit
+                    .iter()
+                    .filter(|entry| (first_day..today).contains(&entry.day))
+                    .map(|entry| entry.profit)
+                    .sum(),
+            })
+            .collect(),
+    )
 }
 
 fn garage_name(garage: &Garage) -> String {
@@ -734,31 +905,6 @@ fn city_label(city: &City) -> String {
         format!("{} ({})", city.name, city.id)
     } else {
         city.name.to_string()
-    }
-}
-
-/// "Helsinki 56% · 147245 EUR profit in 7 days" (game productivity, then the
-/// garage's profit over the last 7 days from its profit log).
-fn garage_productivity_summary(save: &SaveGame, garage: &Garage) -> String {
-    let week_profit = save.career.current_day.map(|today| {
-        garage
-            .daily_profit
-            .iter()
-            .filter(|entry| entry.day + PROFIT_WEEK_DAYS > today)
-            .map(|entry| entry.profit)
-            .sum::<i64>()
-    });
-    match week_profit {
-        Some(profit) => format!(
-            "{} {:.0}% · {profit} EUR profit in {PROFIT_WEEK_DAYS} days",
-            garage_name(garage),
-            garage.productivity * 100.0
-        ),
-        None => format!(
-            "{} {:.0}%",
-            garage_name(garage),
-            garage.productivity * 100.0
-        ),
     }
 }
 
@@ -829,21 +975,12 @@ pub(crate) fn seasoned_traveller(save: &SaveGame) -> AchievementEvaluation {
             target: SEASONED_TRAVELLER_TARGET_KM,
             unit: "km",
         },
-        evidence: vec![
-            AchievementEvidence {
-                label: "Own-coach jobs".to_string(),
-                value: summarize_list(&summaries),
-                items: summaries.clone(),
-                complete: current >= SEASONED_TRAVELLER_TARGET_KM,
-            },
-            AchievementEvidence {
-                label: "Note".to_string(),
-                value: "Counts company jobs (your own coach); quick jobs use a provided coach"
-                    .to_string(),
-                items: Vec::new(),
-                complete: false,
-            },
-        ],
+        evidence: vec![AchievementEvidence {
+            label: "Own-coach jobs".to_string(),
+            value: summarize_list(&summaries),
+            items: summaries.clone(),
+            complete: current >= SEASONED_TRAVELLER_TARGET_KM,
+        }],
     }
 }
 
@@ -1224,7 +1361,108 @@ pub(crate) fn giant(save: &SaveGame) -> AchievementEvaluation {
 }
 
 pub(crate) fn not_a_canoe(save: &SaveGame) -> AchievementEvaluation {
-    oversize_cargo_delivered(save, "boat")
+    oversize_cargo_delivered(save, "pilot_boat")
+}
+
+pub(crate) fn big_brother(save: &SaveGame) -> AchievementEvaluation {
+    oversize_cargo_delivered(save, "dumper")
+}
+
+pub(crate) fn mass_to_don(save: &SaveGame) -> AchievementEvaluation {
+    // Consecutive deliveries in the whole log (free roam is not a delivery),
+    // so any other job in between breaks the run.
+    let deliveries = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter(|entry| entry.job_type != FREE_ROAM_JOB_TYPE)
+        .collect::<Vec<_>>();
+    let best = deliveries
+        .windows(3)
+        .filter(|window| {
+            window
+                .iter()
+                .all(|entry| entry.job_type == OVERSIZE_JOB_TYPE)
+        })
+        .map(|window| {
+            let tonnes = window
+                .iter()
+                .map(|entry| oversize_tonnes(entry))
+                .sum::<f64>();
+            let cargos = window
+                .iter()
+                .map(|entry| special_cargo_name(cargo_id(&entry.cargo)))
+                .collect::<Vec<_>>()
+                .join(" + ");
+            (tonnes, cargos)
+        })
+        .max_by(|left, right| left.0.total_cmp(&right.0));
+    let current = best.as_ref().map_or(0, |(tonnes, _)| tonnes.floor() as u32);
+
+    AchievementEvaluation {
+        status: status_from_progress(current, MASS_TO_DON_TARGET_TONNES),
+        progress: AchievementProgress {
+            current,
+            target: MASS_TO_DON_TARGET_TONNES,
+            unit: "t",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Heaviest 3 in a row".to_string(),
+            value: best.map_or_else(
+                || "no 3 Special Transport deliveries in a row yet".to_string(),
+                |(tonnes, cargos)| format!("{tonnes:.0} t ({cargos})"),
+            ),
+            items: Vec::new(),
+            complete: current >= MASS_TO_DON_TARGET_TONNES,
+        }],
+    }
+}
+
+pub(crate) fn driver_exceptionnel(save: &SaveGame) -> AchievementEvaluation {
+    let driven = oversize_deliveries(save)
+        .map(|entry| entry.special_route.as_str())
+        .filter(|route| !route.is_empty())
+        .collect::<BTreeSet<_>>();
+    let base = BASE_GAME_SPECIAL_ROUTES
+        .iter()
+        .filter(|(id, _)| driven.contains(id))
+        .map(|(_, name)| (*name).to_string())
+        .collect::<BTreeSet<_>>();
+    let missing = BASE_GAME_SPECIAL_ROUTES
+        .iter()
+        .filter(|(id, _)| !driven.contains(id))
+        .map(|(_, name)| (*name).to_string())
+        .collect::<BTreeSet<_>>();
+    let other = driven
+        .iter()
+        .filter(|route| !BASE_GAME_SPECIAL_ROUTES.iter().any(|(id, _)| id == *route))
+        .map(|route| (*route).to_string())
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(
+        &base,
+        DRIVER_EXCEPTIONNEL_TARGET_ROUTES,
+        "base game routes",
+        "Driven",
+    );
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Not driven yet".to_string(),
+        value: if missing.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: set_items(&missing),
+        complete: missing.is_empty(),
+    });
+    if !other.is_empty() {
+        evaluation.evidence.push(AchievementEvidence {
+            label: "DLC routes (not counted)".to_string(),
+            value: summarize_set(&other, SUMMARY_EVIDENCE_LIMIT),
+            items: Vec::new(),
+            complete: false,
+        });
+    }
+    evaluation
 }
 
 pub(crate) fn volvo_trucks_lover(save: &SaveGame) -> AchievementEvaluation {
@@ -1279,25 +1517,48 @@ fn oversize_deliveries(save: &SaveGame) -> impl Iterator<Item = &DeliveryLogEntr
         .filter(|entry| entry.job_type == OVERSIZE_JOB_TYPE)
 }
 
+/// Delivered Special Transport cargoes, by readable name.
 fn oversize_cargos(save: &SaveGame) -> BTreeSet<String> {
     oversize_deliveries(save)
-        .map(|entry| cargo_id(&entry.cargo).to_string())
+        .map(|entry| cargo_id(&entry.cargo))
         .filter(|cargo| !cargo.is_empty())
+        .map(special_cargo_label)
         .collect()
 }
 
-/// Special Transport cargo IDs are matched by a distinctive token
-/// (`silo`, `785` for the Cat 785C chassis, `boat` for the service boat).
-fn oversize_cargo_delivered(save: &SaveGame, token: &str) -> AchievementEvaluation {
-    let cargos = oversize_cargos(save);
-    let matching = cargos
+/// "Giant Silo (silo)"; unknown cargo IDs are shown as they are.
+fn special_cargo_label(cargo: &str) -> String {
+    match special_cargo(cargo) {
+        Some((id, name, _)) => format!("{name} ({id})"),
+        None => cargo.to_string(),
+    }
+}
+
+fn special_cargo_name(cargo: &str) -> String {
+    special_cargo(cargo).map_or_else(|| cargo.to_string(), |(_, name, _)| (*name).to_string())
+}
+
+fn special_cargo(cargo: &str) -> Option<&'static (&'static str, &'static str, u32)> {
+    SPECIAL_TRANSPORT_CARGOES
         .iter()
-        .filter(|cargo| cargo.contains(token))
-        .cloned()
-        .collect::<BTreeSet<_>>();
+        .find(|(id, _, _)| *id == cargo)
+}
+
+/// Cargo mass from the Special Transport cargo list, falling back to the
+/// delivery log's mass for cargo not in it.
+fn oversize_tonnes(entry: &DeliveryLogEntry) -> f64 {
+    special_cargo(cargo_id(&entry.cargo)).map_or_else(
+        || entry.cargo_mass_kg.unwrap_or(0.0) / 1000.0,
+        |(_, _, tonnes)| f64::from(*tonnes),
+    )
+}
+
+fn oversize_cargo_delivered(save: &SaveGame, cargo: &str) -> AchievementEvaluation {
+    let cargos = oversize_cargos(save);
     let deliveries = oversize_deliveries(save)
-        .filter(|entry| cargo_id(&entry.cargo).contains(token))
+        .filter(|entry| cargo_id(&entry.cargo) == cargo)
         .count() as u32;
+
     let complete = deliveries >= 1;
 
     AchievementEvaluation {
@@ -1309,8 +1570,12 @@ fn oversize_cargo_delivered(save: &SaveGame, token: &str) -> AchievementEvaluati
         },
         evidence: vec![
             AchievementEvidence {
-                label: "Matching cargo".to_string(),
-                value: summarize_set(&matching, SUMMARY_EVIDENCE_LIMIT),
+                label: special_cargo_label(cargo),
+                value: if complete {
+                    format!("{deliveries} deliveries")
+                } else {
+                    "missing".to_string()
+                },
                 items: Vec::new(),
                 complete,
             },
@@ -1852,13 +2117,18 @@ mod tests {
                 "all_around_the_isle_of_beauty",
                 "balkan_explorer",
                 "baltic_tourist",
+                "big_brother",
                 "bon_voyage",
                 "captain",
+                "cattle_drive",
                 "conquistador",
+                "driver_exceptionnel",
                 "giant",
                 "go_nuclear",
                 "iberian_pilgrimage",
                 "imperator",
+                "mass_to_don",
+                "miner",
                 "multitalented_driver",
                 "not_a_canoe",
                 "odyssean_voyager",
@@ -1898,26 +2168,15 @@ mod tests {
 
     #[test]
     fn evaluates_special_transport_achievements_from_oversize_jobs() {
+        let oversize = |cargo: &str| entry(cargo, 300, "vehicle.volvo.fh16", "spec_oversize");
         let mut entries = vec![
-            entry("cargo.silo", 400, "vehicle.volvo.fh16", "spec_oversize"),
-            entry("cargo.silo", 380, "vehicle.volvo.fh16", "spec_oversize"),
-            entry(
-                "cargo.pilot_boat",
-                300,
-                "vehicle.volvo.fh16",
-                "spec_oversize",
-            ),
+            oversize("cargo.silo"),
+            oversize("cargo.silo"),
+            oversize("cargo.pilot_boat"),
             // A regular job never counts towards Special Transport achievements.
-            entry("cargo.cat_785c", 300, "vehicle.volvo.fh16", "cargo"),
+            entry("cargo.dumper", 300, "vehicle.volvo.fh16", "cargo"),
         ];
-        entries.extend((0..8).map(|index| {
-            entry(
-                &format!("cargo.oversize_{index}"),
-                300,
-                "vehicle.volvo.fh16",
-                "spec_oversize",
-            )
-        }));
+        entries.extend((0..8).map(|index| oversize(&format!("cargo.oversize_{index}"))));
         let save = save_with_entries(entries);
 
         let size_matters = achievement_by_id(&save, "size_matters");
@@ -1927,21 +2186,125 @@ mod tests {
         let bigger = achievement_by_id(&save, "the_bigger_the_better");
         assert_eq!(bigger.status, AchievementStatus::Complete);
         assert_eq!(bigger.progress.current, 10);
-        assert!(!bigger.evidence[0].items.contains(&"cat_785c".to_string()));
+        // Known cargo shows its in-game name; unknown IDs stay as they are.
+        assert!(bigger.evidence[0]
+            .items
+            .contains(&"Giant Silo (silo)".to_string()));
+        assert!(bigger.evidence[0].items.contains(&"oversize_0".to_string()));
+        assert!(!bigger.evidence[0]
+            .items
+            .contains(&"Haul Truck Chassis (dumper)".to_string()));
 
-        assert_eq!(
-            achievement_by_id(&save, "giant").status,
-            AchievementStatus::Complete
-        );
-        assert_eq!(achievement_by_id(&save, "giant").progress.current, 2);
+        let giant = achievement_by_id(&save, "giant");
+        assert_eq!(giant.status, AchievementStatus::Complete);
+        assert_eq!(giant.progress.current, 2);
+        assert_eq!(giant.evidence[0].label, "Giant Silo (silo)");
+        assert_eq!(giant.evidence[0].value, "2 deliveries");
         assert_eq!(
             achievement_by_id(&save, "not_a_canoe").status,
             AchievementStatus::Complete
         );
-        // The Haul Truck Chassis cargo ID is unconfirmed, so it stays untracked.
+        // Big Brother needs the Haul Truck Chassis as a Special Transport job.
+        let big_brother = achievement_by_id(&save, "big_brother");
+        assert_eq!(big_brother.status, AchievementStatus::InProgress);
+        assert_eq!(big_brother.evidence[0].label, "Haul Truck Chassis (dumper)");
+        assert_eq!(big_brother.evidence[0].value, "missing");
+    }
+
+    #[test]
+    fn evaluates_mass_to_don_over_three_consecutive_deliveries() {
+        let oversize = |cargo: &str| entry(cargo, 300, "vehicle.volvo.fh16", "spec_oversize");
+        let free_roam = || entry("", 50, "vehicle.volvo.fh16", "freerm");
+        // 70 + 70 + 45 = 185 t, then a regular job breaks the run.
+        let save = save_with_entries(vec![
+            oversize("cargo.heat_exch"),
+            oversize("cargo.heat_exch"),
+            oversize("cargo.boiler_parts"),
+            entry("cargo.gravel", 300, "vehicle.volvo.fh16", "cargo"),
+            oversize("cargo.heat_exch"),
+            oversize("cargo.condensator"),
+        ]);
+        let mass = achievement_by_id(&save, "mass_to_don");
+        assert_eq!(mass.progress.current, 185);
+        assert_eq!(mass.status, AchievementStatus::InProgress);
         assert_eq!(
-            achievement_by_id(&save, "big_brother").status,
-            AchievementStatus::NotTracked
+            mass.evidence[0].value,
+            "185 t (Heat Exchanger + Heat Exchanger + Boiler Part)"
+        );
+
+        // Free roam between deliveries does not break the run: 70 + 60 + 70.
+        let mut save = save;
+        save.delivery_log.entries.push(free_roam());
+        save.delivery_log.entries.push(oversize("cargo.heat_exch"));
+        let mass = achievement_by_id(&save, "mass_to_don");
+        assert_eq!(mass.progress.current, 200);
+        assert_eq!(mass.status, AchievementStatus::Complete);
+
+        // Unknown cargo falls back to the delivery log's mass.
+        let save = save_with_entries(
+            (0..3)
+                .map(|_| DeliveryLogEntry {
+                    cargo_mass_kg: Some(66_000.0),
+                    ..oversize("cargo.new_part")
+                })
+                .collect(),
+        );
+        assert_eq!(
+            achievement_by_id(&save, "mass_to_don").progress.current,
+            198
+        );
+    }
+
+    #[test]
+    fn evaluates_driver_exceptionnel_on_base_game_routes() {
+        let route = |id: &str| DeliveryLogEntry {
+            special_route: id.to_string(),
+            ..entry(
+                "cargo.heat_exch",
+                300,
+                "vehicle.volvo.fh16",
+                "spec_oversize",
+            )
+        };
+        let save = save_with_entries(vec![
+            route("lux_lieg1"),
+            route("lux_lieg1"),
+            route("ber_szcz1"),
+            // DLC routes do not count.
+            route("nic_nic1"),
+            route("stav_osl1"),
+        ]);
+
+        let driver = achievement_by_id(&save, "driver_exceptionnel");
+
+        assert_eq!(driver.progress.current, 2);
+        assert_eq!(driver.progress.target, 10);
+        assert_eq!(
+            driver.evidence[0].items,
+            vec!["Berlin – Szczecin", "Luxembourg – Liège"]
+        );
+        assert_eq!(driver.evidence[1].items.len(), 15);
+        assert!(driver.evidence[1]
+            .items
+            .contains(&"Munich – Salzburg".to_string()));
+        assert_eq!(driver.evidence[2].value, "nic_nic1, stav_osl1");
+
+        let routes = [
+            "lux_lieg1",
+            "shef_bir1",
+            "bre_tra1",
+            "ber_szcz1",
+            "reim_stra1",
+            "dort_hann1",
+            "prag_nurn1",
+            "glas_aber1",
+            "munch_inns1",
+            "koln_amster1",
+        ];
+        let save = save_with_entries(routes.iter().map(|id| route(id)).collect());
+        assert_eq!(
+            achievement_by_id(&save, "driver_exceptionnel").status,
+            AchievementStatus::Complete
         );
     }
 
@@ -2062,6 +2425,18 @@ mod tests {
             .items
             .contains(&"Clermont-Ferrand".to_string()));
         assert!(bon_voyage.evidence[1].value.contains("Le Havre"));
+        // Undiscovered cities are a list too.
+        assert!(bon_voyage.evidence[1]
+            .items
+            .contains(&"Le Havre".to_string()));
+        assert_eq!(
+            bon_voyage.evidence[1].items.len(),
+            CITIES
+                .iter()
+                .filter(|city| city.country == "france")
+                .count()
+                - 8
+        );
 
         let corsica = achievement("all_around_the_isle_of_beauty");
         assert_eq!(corsica.progress.current, 4);
@@ -2091,6 +2466,61 @@ mod tests {
                 "{id}"
             );
         }
+    }
+
+    #[test]
+    fn evaluates_cattle_drive_to_scandinavia_dlc_cities() {
+        let to = |company: &str, cargo: &str| DeliveryLogEntry {
+            source_company: "company.volatile.aria_fd_jnpg.jonkoping".to_string(),
+            destination_company: format!("company.volatile.{company}"),
+            ..entry(cargo, 345, "vehicle.man.tgx", "quick")
+        };
+        // Hamburg is a base-game city; Aalborg is in the Scandinavia DLC.
+        let save = save_with_entries(vec![
+            to("aria_fd.hamburg", "cargo.live_cattle"),
+            to("aria_fd_albg.aalborg", "cargo.live_pigs"),
+        ]);
+        let cattle = achievement_by_id(&save, "cattle_drive");
+        assert_eq!(cattle.status, AchievementStatus::InProgress);
+        assert_eq!(cattle.evidence[0].value, "missing");
+
+        let save = save_with_entries(vec![to("aria_fd_albg.aalborg", "cargo.live_cattle")]);
+        let cattle = achievement_by_id(&save, "cattle_drive");
+        assert_eq!(cattle.status, AchievementStatus::Complete);
+        assert_eq!(
+            cattle.evidence[0].items,
+            vec!["Jönköping → Aalborg, 345 km"]
+        );
+    }
+
+    #[test]
+    fn evaluates_miner_from_scandinavia_quarries() {
+        let to = |company: &str| DeliveryLogEntry {
+            destination_company: format!("company.volatile.{company}"),
+            ..entry("cargo.excavator", 300, "vehicle.man.tgx", "quick")
+        };
+        let save = save_with_entries(vec![
+            to("ms_stein.oslo"),
+            to("ms_stein.oslo"),
+            to("nord_sten.kalmar"),
+            // The Glasgow quarry is in the base game.
+            to("ms_stein.glasgow"),
+        ]);
+        let miner = achievement_by_id(&save, "miner");
+        assert_eq!(miner.progress.current, 2);
+        assert_eq!(miner.progress.target, 3);
+        assert_eq!(
+            miner.evidence[0].items,
+            vec!["MS Stein (Oslo)", "Nordic Stenbrott (Kalmar)"]
+        );
+        assert_eq!(miner.evidence[1].items.len(), 5);
+
+        let mut save = save;
+        save.delivery_log.entries.push(to("nord_sten.vaxjo"));
+        assert_eq!(
+            achievement_by_id(&save, "miner").status,
+            AchievementStatus::Complete
+        );
     }
 
     #[test]
@@ -2145,33 +2575,55 @@ mod tests {
     }
 
     #[test]
-    fn evaluates_garage_productivity_achievements() {
+    fn evaluates_garage_productivity_from_last_seven_full_days() {
         let mut save = save_with_entries(Vec::new());
         save.career.current_day = Some(5870);
-        let mut garages = (0..5)
-            .map(|index| garage(&format!("full_{index}"), GarageSize::Large, 1.0))
-            .collect::<Vec<_>>();
-        garages
-            .extend((0..5).map(|index| garage(&format!("half_{index}"), GarageSize::Large, 0.5)));
+        let week = |profit_per_day: i64| {
+            (5863..5870)
+                .map(|day| profit(day, profit_per_day))
+                .collect()
+        };
+        // Stockholm in the user's save: 190,296 EUR over days 5863 to 5869 = 63%.
+        let mut stockholm = garage("stockholm", GarageSize::Large, 0.51);
+        stockholm.daily_profit = vec![
+            // Outside the window: 8 days ago and today.
+            profit(5862, 500_000),
+            profit(5863, 190_296),
+            profit(5870, 500_000),
+        ];
+        let mut garages = vec![stockholm];
+        garages.extend((0..5).map(|index| {
+            let mut full = garage(&format!("full_{index}"), GarageSize::Large, 0.0);
+            // 300,000 EUR a week is 100%.
+            full.daily_profit = week(300_000 / 7 + 1);
+            full
+        }));
+        garages.extend((0..4).map(|index| {
+            let mut half = garage(&format!("half_{index}"), GarageSize::Large, 1.0);
+            half.daily_profit = week(150_000 / 7 + 1);
+            half
+        }));
         // Small garages never count.
-        garages.push(garage("zurich", GarageSize::Small, 1.0));
-        garages[0].daily_profit = vec![profit(5863, 1_000), profit(5864, 300_000)];
+        let mut zurich = garage("zurich", GarageSize::Small, 1.0);
+        zurich.daily_profit = week(100_000);
+        garages.push(zurich);
         save.career.garages = Some(garages);
 
         let elite = achievement_by_id(&save, "working_with_the_elite");
         assert_eq!(elite.progress.current, 5);
         assert_eq!(elite.status, AchievementStatus::Complete);
-        // Day 5863 is outside the last 7 days (5864 to 5870).
+        assert_eq!(elite.evidence[0].items.len(), 10);
         assert_eq!(
             elite.evidence[0].items[0],
-            "full_0 100% · 300000 EUR profit in 7 days"
+            "Stockholm 63% · 190296 EUR profit in 7 days"
         );
 
+        // (63 + 5 × 100 + 4 × 50) / 10 = 76%.
         let optimizer = achievement_by_id(&save, "performance_optimizer");
-        assert_eq!(optimizer.progress.current, 75);
+        assert_eq!(optimizer.progress.current, 76);
         assert_eq!(optimizer.progress.target, 75);
         assert_eq!(optimizer.evidence[0].value, "10 (needs 10)");
-        assert_eq!(optimizer.evidence[2].value, "75% (needs 75%)");
+        assert_eq!(optimizer.evidence[2].value, "76% (needs 75%)");
         assert_eq!(optimizer.status, AchievementStatus::Complete);
 
         // An 11th, empty large garage pulls the average below 75%.
@@ -2179,10 +2631,17 @@ mod tests {
             .garages
             .as_mut()
             .unwrap()
-            .push(garage("empty", GarageSize::Large, 0.0));
+            .push(garage("empty", GarageSize::Large, 1.0));
         assert_eq!(
             achievement_by_id(&save, "performance_optimizer").status,
             AchievementStatus::InProgress
+        );
+
+        // Without the in-game day the window cannot be placed.
+        save.career.current_day = None;
+        assert_eq!(
+            achievement_by_id(&save, "working_with_the_elite").evidence[0].value,
+            "not found in this save"
         );
     }
 
@@ -2215,6 +2674,7 @@ mod tests {
         let traveller = achievement_by_id(&save, "seasoned_traveller");
         assert_eq!(traveller.progress.current, 3_356);
         assert_eq!(traveller.status, AchievementStatus::InProgress);
+        assert_eq!(traveller.evidence.len(), 1);
 
         assert_eq!(
             achievement_by_id(&save, "multitalented_driver").status,

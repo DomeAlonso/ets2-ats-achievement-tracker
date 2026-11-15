@@ -715,6 +715,11 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   seasoned_traveller: "own-coach jobs",
   rule_of_threes: "qualifying coach jobs",
   cattle_drive: "cattle deliveries",
+  big_brother: "delivered oversize cargoes",
+  driver_exceptionnel: {
+    Driven: "driven base game routes",
+    "Not driven yet": "base game routes not driven yet",
+  },
   miner: {
     "Delivered to": "quarries delivered to",
     "Not delivered to yet": "quarries not delivered to yet",

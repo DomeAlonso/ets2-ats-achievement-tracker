@@ -97,7 +97,9 @@ pub struct DailyProfit {
 pub struct Garage {
     pub city: String,
     pub size: GarageSize,
-    /// `garage.productivity` as stored by the game, 0.0 to 1.0.
+    /// `garage.productivity` as stored by the game, 0.0 to 1.0. This is not
+    /// the percentage the game shows; achievements compute that from
+    /// `daily_profit` instead.
     pub productivity: f64,
     /// Profit per day from the garage's `profit_log` (all its drivers), oldest
     /// first. The game keeps only the last couple of weeks.
