@@ -16,8 +16,8 @@ pub use analysis::{analyze_save_to_json, AnalyzeError};
 pub use cities::{city_by_id, City, CITIES};
 pub use save::{
     company_city, BusJob, CareerStats, DailyProfit, DeliveryAnalytics, DeliveryLog,
-    DeliveryLogEntry, FerryCrossing, Garage, GarageSize, SaveGame, SaveGameError, CARGO_PREFIX,
-    COACH_SKILLS, COMPANY_PREFIX, VEHICLE_PREFIX,
+    DeliveryLogEntry, FerryCrossing, Garage, GarageSize, MapAchievementProgress, SaveGame,
+    SaveGameError, CARGO_PREFIX, COACH_SKILLS, COMPANY_PREFIX, VEHICLE_PREFIX,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]

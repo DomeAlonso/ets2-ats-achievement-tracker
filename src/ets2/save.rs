@@ -65,6 +65,20 @@ pub struct CareerStats {
     pub coach_skills: Option<Vec<(&'static str, u64)>>,
     /// `bus_job_log` entries, oldest first; `None` when the save has no `bus_job_log`.
     pub bus_jobs: Option<Vec<BusJob>>,
+    /// Achievement progress stored as `map_action` blocks with
+    /// `command: achievement`: (`str_params[0]` achievement API name,
+    /// `id_params` = UIDs of the items already found). `None` when the save
+    /// has no `map_action` blocks at all.
+    pub map_achievements: Option<Vec<MapAchievementProgress>>,
+}
+
+/// One `map_action` achievement-progress block.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MapAchievementProgress {
+    /// Steam API name, e.g. `fr_landmarks`.
+    pub achievement: String,
+    /// UIDs of the discovered items (landmarks, cutscenes, crossings).
+    pub item_ids: Vec<u64>,
 }
 
 /// Coach skill fields in the `economy` block (added with the Coaches DLC),
@@ -452,6 +466,33 @@ impl CareerStats {
             .collect::<Vec<_>>();
         bus_jobs.sort_by_key(|job| job.start_time);
 
+        let has_map_actions = bsii.blocks_by_prototype_name("map_action").next().is_some();
+        let map_achievements = bsii
+            .blocks_by_prototype_name("map_action")
+            .filter(|block| {
+                block
+                    .field(bsii, "command")
+                    .and_then(value_as_string)
+                    .as_deref()
+                    == Some("achievement")
+            })
+            .filter_map(|block| {
+                let achievement = block
+                    .field(bsii, "str_params")
+                    .and_then(value_as_string_array)?
+                    .into_iter()
+                    .next()?;
+                let item_ids = match block.field(bsii, "id_params") {
+                    Some(DataValue::UInt64Array(ids)) => ids.clone(),
+                    _ => Vec::new(),
+                };
+                Some(MapAchievementProgress {
+                    achievement,
+                    item_ids,
+                })
+            })
+            .collect::<Vec<_>>();
+
         Self {
             discovered_road_km: player_field("discovary_distance").and_then(value_as_f64),
             sleeping_count: player_field("sleeping_count").and_then(value_as_u64),
@@ -469,6 +510,7 @@ impl CareerStats {
                 .map(|minutes| (minutes / MINUTES_PER_DAY) as u32),
             coach_skills,
             bus_jobs: (has_bus_job_log || !bus_jobs.is_empty()).then_some(bus_jobs),
+            map_achievements: has_map_actions.then_some(map_achievements),
         }
     }
 }

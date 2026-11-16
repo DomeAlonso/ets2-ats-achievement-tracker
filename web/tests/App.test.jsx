@@ -56,6 +56,10 @@ vi.mock("../src/decode.worker?worker", () => {
                         id: "greece",
                         name: "Greece Map Expansion Achievements",
                       },
+                      {
+                        id: "vive_la_france",
+                        name: "Vive la France ! Achievements",
+                      },
                     ],
                     achievements: [
                       {
@@ -81,6 +85,29 @@ vi.mock("../src/decode.worker?worker", () => {
                               "Ηράκλειο (heraklion)",
                               "Πάτρα (patra)",
                             ],
+                            complete: false,
+                          },
+                        ],
+                      },
+                      {
+                        id: "landmark_tour",
+                        group: "vive_la_france",
+                        display_name: "Landmark Tour",
+                        description: "Discover following landmarks of France",
+                        status: "in_progress",
+                        progress: { current: 2, target: 6, unit: "landmarks" },
+                        evidence: [
+                          {
+                            label: "Found",
+                            value: "Unknown landmark (ID 42); Carcassonne",
+                            items: ["Unknown landmark (ID 42)", "Carcassonne"],
+                            complete: false,
+                          },
+                          {
+                            label: "Note",
+                            value:
+                              "The save stores 1 ID that the tracker cannot name yet. If you know which landmark an ID belongs to, please report it as an issue so it can be added.",
+                            items: [],
                             complete: false,
                           },
                         ],
@@ -643,4 +670,33 @@ test("Tracker errors do not render in decode output after both tabs are used", a
   await new Promise((resolve) => setTimeout(resolve, 30));
 
   expect(screen.getByTestId("file-display")).not.toHaveDisplayValue(/Error:/);
+});
+
+test("Map progress cards list found items and explain unknown IDs", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII-cities"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  await userEvent.click(
+    screen.getByRole("button", { name: /Vive la France ! Achievements/ }),
+  );
+  expect(
+    screen.getByText(/please report it as an issue so it can be added/),
+  ).toBeInTheDocument();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "View 2 found items" }),
+  );
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("heading", { name: "Found items" }),
+  ).toBeInTheDocument();
+  expect(dialog).toHaveTextContent("Unknown landmark (ID 42)");
 });

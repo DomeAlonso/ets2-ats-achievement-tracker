@@ -195,7 +195,52 @@ const HEAD_HUNTER_TARGET_AGENCIES: u32 = 40;
 const PROPERTY_MAGNATE_TARGET_GARAGES: u32 = 30;
 // Company/city IDs below were checked against a 1.5x save's company list.
 const FRENCH_NUCLEAR_PLANT_CITIES: [&str; 5] = ["alban", "civaux", "golfech", "laurent", "paluel"];
-const SCANDINAVIA_CONTAINER_PORT_CITIES: [&str; 2] = ["esbjerg", "oslo"];
+/// Scandinavia DLC ports for Whatever Floats Your Boat, as (company, city):
+/// the container ports and the Stockholm marina (`company_def : .stockholm`,
+/// prefab `dlc_no_21`).
+const SCANDINAVIA_PORTS: [(&str, &str); 3] = [
+    ("cont_port", "esbjerg"),
+    ("cont_port", "oslo"),
+    ("marina", "stockholm"),
+];
+/// Heavy Cargo Pack cargo IDs with their in-game names. The name of
+/// `mob_stacker` is not confirmed.
+const HEAVY_CARGO_CARGOES: [(&str, Option<&str>); 11] = [
+    ("asph_miller", Some("Asphalt Miller")),
+    ("cable_reel", Some("Industrial Cable Reel")),
+    ("concr_beams", Some("Concrete Beams")),
+    ("dozer", Some("Dozer Crawl")),
+    ("locomotive", Some("Locomotive")),
+    ("metal_center", Some("Metal Centering")),
+    ("mobile_crane", Some("Mobile Crane")),
+    ("mob_crusher", Some("Mobile Crusher")),
+    ("mob_screener", Some("Mobile Screener")),
+    ("mob_stacker", None),
+    ("transformat", Some("Transformer")),
+];
+const KEEP_CALM_TARGET_JOBS: u32 = 3;
+const NO_PAIN_NO_GAIN_TARGET_TONNES: u32 = 250;
+const NO_PAIN_NO_GAIN_JOBS: usize = 5;
+const HEAVY_CARGO_TARGET_CARGOES: u32 = 8;
+const NOT_A_BIG_PROBLEM_TARGET_JOBS: u32 = 3;
+const ISSUES_URL: &str = "https://github.com/fangyi-zhou/sii-decode-rs/issues";
+/// Landmark Tour (`fr_landmarks`) landmarks, in the achievement's order, with
+/// the save's item ID where it is known.
+const FRANCE_LANDMARKS: [(&str, Option<u64>); 6] = [
+    ("Carcassonne", Some(489_385_028_879_450_112)),
+    ("Brotonne bridge", Some(489_401_940_281_720_832)),
+    ("Tiger tank", Some(489_401_511_530_528_768)),
+    ("Peyrat-le-Château", None),
+    ("Château de Ventadour", Some(489_406_274_463_662_080)),
+    ("Château d'Ussé", Some(489_406_544_128_049_152)),
+];
+const BLACK_SEA_LANDMARKS: [(&str, Option<u64>); 5] = [
+    ("Iron Gates", None),
+    ("Bran Castle", None),
+    ("Pomorie Beach", None),
+    ("Wall of Heroes (Varna)", None),
+    ("Lake Küçükçekmece (Istanbul)", None),
+];
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AchievementRegistry {
@@ -655,21 +700,141 @@ fn job_distance(entry: &DeliveryLogEntry) -> u32 {
 
 fn job_summary(entry: &DeliveryLogEntry) -> String {
     format!(
-        "{} → {}, {}, {} km",
-        city_name(company_city(&entry.source_company)),
-        city_name(company_city(&entry.destination_company)),
+        "{}, {}, {} km",
+        job_route(entry),
         cargo_id(&entry.cargo),
         job_distance(entry)
     )
 }
 
+/// "Source → destination"; Special Transport jobs have no companies, so they
+/// show their route instead.
+fn job_route(entry: &DeliveryLogEntry) -> String {
+    if entry.source_company.is_empty() && !entry.special_route.is_empty() {
+        return match classify_special_route(&entry.special_route) {
+            RouteKind::BaseGame(name) | RouteKind::Dlc(name) => name,
+            RouteKind::Unrecognised => format!("route {}", entry.special_route),
+        };
+    }
+    format!(
+        "{} → {}",
+        city_name(company_city(&entry.source_company)),
+        city_name(company_city(&entry.destination_company))
+    )
+}
+
+/// Minutes left at delivery as text. World of Trucks jobs only record in
+/// time or late.
+fn time_left_text(entry: &DeliveryLogEntry) -> String {
+    match (
+        entry.job_type == WORLD_OF_TRUCKS_JOB_TYPE,
+        entry.time_left_minutes,
+    ) {
+        (true, minutes) if minutes >= 0 => "in time".to_string(),
+        (true, _) => "late".to_string(),
+        (false, minutes) if minutes >= 0 => format!("{minutes} min left"),
+        (false, minutes) => format!("late by {} min", -minutes),
+    }
+}
+
+fn damage_text(entry: &DeliveryLogEntry) -> String {
+    format!("damage {:.1}%", entry.cargo_damage * 100.0)
+}
+
+/// A job with the values that decide a perfect delivery.
+fn quality_summary(entry: &DeliveryLogEntry) -> String {
+    format!(
+        "{}, fines €{}, {}, {}",
+        job_summary(entry),
+        entry.fines,
+        damage_text(entry),
+        time_left_text(entry)
+    )
+}
+
+/// No cargo damage, no fines and in time.
+fn is_perfect_delivery(entry: &DeliveryLogEntry) -> bool {
+    entry.cargo_damage <= 0.0 && entry.fines == 0 && entry.time_left_minutes >= 0
+}
+
+/// The longest run of back-to-back jobs (free roam is not a job) that all
+/// match `matches`.
+fn longest_job_streak(
+    save: &SaveGame,
+    matches: impl Fn(&DeliveryLogEntry) -> bool,
+) -> Vec<&DeliveryLogEntry> {
+    let mut best = Vec::new();
+    let mut run = Vec::new();
+    for entry in jobs(save) {
+        if matches(entry) {
+            run.push(entry);
+            if run.len() > best.len() {
+                best = run.clone();
+            }
+        } else {
+            run.clear();
+        }
+    }
+    best
+}
+
+/// Progress for "N consecutive jobs that …" achievements.
+fn job_streak(
+    save: &SaveGame,
+    target: u32,
+    label: &str,
+    matches: impl Fn(&DeliveryLogEntry) -> bool,
+) -> AchievementEvaluation {
+    let streak = longest_job_streak(save, matches);
+    let current = (streak.len() as u32).min(target);
+    let items = streak
+        .iter()
+        .map(|entry| quality_summary(entry))
+        .collect::<Vec<_>>();
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit: "jobs in a row",
+        },
+        evidence: vec![AchievementEvidence {
+            label: label.to_string(),
+            value: if streak.is_empty() {
+                "none yet".to_string()
+            } else {
+                match streak.len() {
+                    1 => "1 job".to_string(),
+                    jobs => format!("{jobs} jobs in a row"),
+                }
+            },
+            items,
+            complete: current >= target,
+        }],
+    }
+}
+
+fn note(text: String) -> AchievementEvidence {
+    AchievementEvidence {
+        label: "Note".to_string(),
+        value: text,
+        items: Vec::new(),
+        complete: false,
+    }
+}
+
 pub(crate) fn job_is_only_worth_it_if_its_done_well(save: &SaveGame) -> AchievementEvaluation {
-    let perfect = jobs(save)
+    let long_jobs = jobs(save)
         .filter(|entry| job_distance(entry) >= PERFECT_DELIVERY_MIN_DISTANCE_KM)
-        .filter(|entry| {
-            entry.cargo_damage <= 0.0 && entry.fines == 0 && entry.time_left_minutes >= 0
-        })
-        .map(job_summary)
+        .collect::<Vec<_>>();
+    let perfect = long_jobs
+        .iter()
+        .filter(|entry| is_perfect_delivery(entry))
+        .map(|entry| job_summary(entry))
+        .collect::<Vec<_>>();
+    let all = long_jobs
+        .iter()
+        .map(|entry| quality_summary(entry))
         .collect::<Vec<_>>();
     let current = perfect.len() as u32;
 
@@ -680,21 +845,36 @@ pub(crate) fn job_is_only_worth_it_if_its_done_well(save: &SaveGame) -> Achievem
             target: 1,
             unit: "perfect deliveries",
         },
-        evidence: vec![AchievementEvidence {
-            label: "Perfect 1,000 km+ jobs".to_string(),
-            value: summarize_list(&perfect),
-            items: perfect.clone(),
-            complete: current >= 1,
-        }],
+        evidence: vec![
+            AchievementEvidence {
+                label: "Perfect 1,000 km+ jobs".to_string(),
+                value: summarize_list(&perfect),
+                items: perfect.clone(),
+                complete: current >= 1,
+            },
+            AchievementEvidence {
+                label: "All 1,000 km+ jobs".to_string(),
+                value: summarize_list(&all),
+                items: all.clone(),
+                complete: current >= 1,
+            },
+        ],
     }
 }
 
 pub(crate) fn just_in_time(save: &SaveGame) -> AchievementEvaluation {
-    // World of Trucks jobs only record in time / late, not the minutes left.
-    let qualifying = jobs(save)
-        .filter(|entry| entry.job_type != WORLD_OF_TRUCKS_JOB_TYPE)
+    let urgent = jobs(save)
         .filter(|entry| entry.urgency == URGENT)
         .filter(|entry| job_distance(entry) >= JUST_IN_TIME_MIN_DISTANCE_KM)
+        .collect::<Vec<_>>();
+    let all_urgent = urgent
+        .iter()
+        .map(|entry| format!("{}, {}", job_summary(entry), time_left_text(entry)))
+        .collect::<Vec<_>>();
+    // World of Trucks jobs only record in time / late, not the minutes left.
+    let qualifying = urgent
+        .iter()
+        .filter(|entry| entry.job_type != WORLD_OF_TRUCKS_JOB_TYPE)
         .filter(|entry| (0..JUST_IN_TIME_MAX_MINUTES_LEFT).contains(&entry.time_left_minutes))
         .map(|entry| {
             format!(
@@ -704,6 +884,9 @@ pub(crate) fn just_in_time(save: &SaveGame) -> AchievementEvaluation {
             )
         })
         .collect::<Vec<_>>();
+    let has_world_of_trucks = urgent
+        .iter()
+        .any(|entry| entry.job_type == WORLD_OF_TRUCKS_JOB_TYPE);
     let current = qualifying.len() as u32;
 
     AchievementEvaluation {
@@ -713,12 +896,30 @@ pub(crate) fn just_in_time(save: &SaveGame) -> AchievementEvaluation {
             target: 1,
             unit: "deliveries",
         },
-        evidence: vec![AchievementEvidence {
-            label: "Urgent 550 km+, under 30 min left".to_string(),
-            value: summarize_list(&qualifying),
-            items: qualifying.clone(),
-            complete: current >= 1,
-        }],
+        evidence: {
+            let mut evidence = vec![
+                AchievementEvidence {
+                    label: "Urgent 550 km+, under 30 min left".to_string(),
+                    value: summarize_list(&qualifying),
+                    items: qualifying.clone(),
+                    complete: current >= 1,
+                },
+                AchievementEvidence {
+                    label: "All urgent 550 km+ jobs".to_string(),
+                    value: summarize_list(&all_urgent),
+                    items: all_urgent.clone(),
+                    complete: current >= 1,
+                },
+            ];
+            if has_world_of_trucks {
+                evidence.push(note(
+                    "World of Trucks jobs only record whether they were in time, not the \
+                     minutes left, so they are listed but not counted."
+                        .to_string(),
+                ));
+            }
+            evidence
+        },
     }
 }
 
@@ -765,7 +966,7 @@ pub(crate) fn minimaxer(save: &SaveGame) -> AchievementEvaluation {
     let jobs = jobs(save).collect::<Vec<_>>();
     // Highest-XP run of consecutive jobs below the distance cap. XP and
     // distance never decrease as a run grows, so two pointers suffice.
-    let (mut best_xp, mut best_km, mut best_jobs) = (0_u64, 0_u64, 0_usize);
+    let (mut best_xp, mut best_km, mut best_range) = (0_u64, 0_u64, 0..0);
     let (mut start, mut xp, mut km) = (0_usize, 0_u64, 0_u64);
     for (end, job) in jobs.iter().enumerate() {
         xp += u64::from(job.xp);
@@ -776,9 +977,28 @@ pub(crate) fn minimaxer(save: &SaveGame) -> AchievementEvaluation {
             start += 1;
         }
         if start <= end && xp > best_xp {
-            (best_xp, best_km, best_jobs) = (xp, km, end + 1 - start);
+            (best_xp, best_km, best_range) = (xp, km, start..end + 1);
         }
     }
+    // After the loop, `start..` is the latest run: the jobs that a next job
+    // could still extend.
+    let current_range = start..jobs.len();
+    let run_items = |range: std::ops::Range<usize>| {
+        jobs[range]
+            .iter()
+            .map(|job| {
+                format!(
+                    "{}, {}, {} XP, {} km driven",
+                    job_route(job),
+                    cargo_id(&job.cargo),
+                    job.xp,
+                    job.distance_km
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let best_jobs = best_range.len();
+    let current_jobs = current_range.len();
     let current = saturating_u32(best_xp);
 
     AchievementEvaluation {
@@ -788,16 +1008,31 @@ pub(crate) fn minimaxer(save: &SaveGame) -> AchievementEvaluation {
             target: MINIMAXER_TARGET_XP,
             unit: "XP",
         },
-        evidence: vec![AchievementEvidence {
-            label: "Best run under 10,000 km".to_string(),
-            value: if best_jobs == 0 {
-                "missing".to_string()
-            } else {
-                format!("{best_xp} XP over {best_jobs} jobs, {best_km} km")
+        evidence: vec![
+            AchievementEvidence {
+                label: "Best run under 10,000 km".to_string(),
+                value: if best_jobs == 0 {
+                    "missing".to_string()
+                } else {
+                    format!("{best_xp} XP over {best_jobs} jobs, {best_km} km")
+                },
+                items: run_items(best_range),
+                complete: current >= MINIMAXER_TARGET_XP,
             },
-            items: Vec::new(),
-            complete: current >= MINIMAXER_TARGET_XP,
-        }],
+            AchievementEvidence {
+                label: "Current run".to_string(),
+                value: if current_jobs == 0 {
+                    "no jobs yet".to_string()
+                } else {
+                    format!(
+                        "{xp} XP over {current_jobs} jobs, {km} km ({} km left)",
+                        MINIMAXER_MAX_DISTANCE_KM - km
+                    )
+                },
+                items: run_items(current_range),
+                complete: xp >= u64::from(MINIMAXER_TARGET_XP),
+            },
+        ],
     }
 }
 
@@ -1423,13 +1658,43 @@ pub(crate) fn go_nuclear(save: &SaveGame) -> AchievementEvaluation {
 }
 
 pub(crate) fn whatever_floats_your_boat(save: &SaveGame) -> AchievementEvaluation {
-    deliveries_to_company(
-        save,
-        "cont_port",
-        &SCANDINAVIA_CONTAINER_PORT_CITIES,
-        1,
-        "container ports",
-    )
+    let port_label = |company: &str, city: &str| {
+        let kind = if company == "marina" {
+            "marina"
+        } else {
+            "container port"
+        };
+        format!("{} ({kind})", city_name(city))
+    };
+    let delivered = save
+        .delivery_log
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            let company = company_id(&entry.destination_company);
+            let city = company_city(&entry.destination_company);
+            SCANDINAVIA_PORTS
+                .contains(&(company, city))
+                .then(|| port_label(company, city))
+        })
+        .collect::<BTreeSet<_>>();
+    let missing = SCANDINAVIA_PORTS
+        .iter()
+        .map(|(company, city)| port_label(company, city))
+        .filter(|port| !delivered.contains(port))
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(&delivered, 1, "ports", "Delivered to");
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Not delivered to yet".to_string(),
+        value: if missing.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: set_items(&missing),
+        complete: missing.is_empty(),
+    });
+    evaluation
 }
 
 pub(crate) fn captain(save: &SaveGame) -> AchievementEvaluation {
@@ -1653,6 +1918,23 @@ pub(crate) fn mass_to_don(save: &SaveGame) -> AchievementEvaluation {
             complete: current >= MASS_TO_DON_TARGET_TONNES,
         }],
     }
+}
+
+pub(crate) fn not_a_big_problem(save: &SaveGame) -> AchievementEvaluation {
+    let mut evaluation = job_streak(
+        save,
+        NOT_A_BIG_PROBLEM_TARGET_JOBS,
+        "Longest run without cargo damage",
+        |entry| entry.job_type == OVERSIZE_JOB_TYPE && entry.cargo_damage <= 0.0,
+    );
+    evaluation.evidence.push(note(
+        "The delivery log only records cargo damage, so this counts Special Transport jobs \
+         without cargo damage. Truck and trailer damage are not stored per job, so the game may \
+         judge a run differently. Consecutive means back to back: any other job in between \
+         breaks the run."
+            .to_string(),
+    ));
+    evaluation
 }
 
 pub(crate) fn driver_exceptionnel(save: &SaveGame) -> AchievementEvaluation {
@@ -2135,12 +2417,303 @@ fn profit_hunter_criteria_met(entry: &DeliveryLogEntry) -> u32 {
         + u32::from(entry.distance_km >= PROFIT_HUNTER_TARGET_DISTANCE_KM)
 }
 
+// ---- Heavy Cargo Pack -------------------------------------------------------
+
+fn heavy_cargo(cargo: &str) -> Option<&'static (&'static str, Option<&'static str>)> {
+    HEAVY_CARGO_CARGOES.iter().find(|(id, _)| *id == cargo)
+}
+
+fn is_heavy_cargo(entry: &DeliveryLogEntry) -> bool {
+    heavy_cargo(cargo_id(&entry.cargo)).is_some()
+}
+
+/// "Asphalt Miller (asph_miller)"; IDs without a confirmed name stay as IDs.
+fn heavy_cargo_label(cargo: &str) -> String {
+    match heavy_cargo(cargo) {
+        Some((id, Some(name))) => format!("{name} ({id})"),
+        _ => cargo.to_string(),
+    }
+}
+
+fn heavy_cargo_jobs(save: &SaveGame) -> impl Iterator<Item = &DeliveryLogEntry> {
+    jobs(save).filter(|entry| is_heavy_cargo(entry))
+}
+
+fn tonnes(entry: &DeliveryLogEntry) -> f64 {
+    entry.cargo_mass_kg.unwrap_or(0.0) / 1000.0
+}
+
+pub(crate) fn time_for_big_hauling(save: &SaveGame) -> AchievementEvaluation {
+    let deliveries = heavy_cargo_jobs(save)
+        .map(|entry| {
+            format!(
+                "{}, {}, {} km",
+                job_route(entry),
+                heavy_cargo_label(cargo_id(&entry.cargo)),
+                job_distance(entry)
+            )
+        })
+        .collect::<Vec<_>>();
+    let current = deliveries.len() as u32;
+    AchievementEvaluation {
+        status: status_from_progress(current, 1),
+        progress: AchievementProgress {
+            current: current.min(1),
+            target: 1,
+            unit: "deliveries",
+        },
+        evidence: vec![AchievementEvidence {
+            label: "Heavy Cargo deliveries".to_string(),
+            value: summarize_list(&deliveries),
+            items: deliveries.clone(),
+            complete: current >= 1,
+        }],
+    }
+}
+
+pub(crate) fn keep_calm_and_haul_heavy(save: &SaveGame) -> AchievementEvaluation {
+    let mut evaluation = job_streak(
+        save,
+        KEEP_CALM_TARGET_JOBS,
+        "Longest perfect run",
+        |entry| is_heavy_cargo(entry) && is_perfect_delivery(entry),
+    );
+    let all = heavy_cargo_jobs(save)
+        .map(quality_summary)
+        .collect::<Vec<_>>();
+    evaluation.evidence.push(AchievementEvidence {
+        label: "All Heavy Cargo jobs".to_string(),
+        value: summarize_list(&all),
+        items: all.clone(),
+        complete: evaluation.status == AchievementStatus::Complete,
+    });
+    evaluation.evidence.push(note(
+        "Perfect means no cargo damage, no fines and in time. Consecutive is read as back to \
+         back: any other job in between breaks the run. Only cargo damage is recorded per job, \
+         not truck damage."
+            .to_string(),
+    ));
+    evaluation
+}
+
+pub(crate) fn no_pain_no_gain(save: &SaveGame) -> AchievementEvaluation {
+    let jobs = jobs(save).collect::<Vec<_>>();
+    let best = jobs
+        .windows(NO_PAIN_NO_GAIN_JOBS)
+        .map(|window| {
+            (
+                window.iter().map(|entry| tonnes(entry)).sum::<f64>(),
+                window,
+            )
+        })
+        .max_by(|left, right| left.0.total_cmp(&right.0));
+    let current = best.map_or(0, |(total, _)| total.floor() as u32);
+    AchievementEvaluation {
+        status: status_from_progress(current, NO_PAIN_NO_GAIN_TARGET_TONNES),
+        progress: AchievementProgress {
+            current,
+            target: NO_PAIN_NO_GAIN_TARGET_TONNES,
+            unit: "t",
+        },
+        evidence: vec![
+            AchievementEvidence {
+                label: "Heaviest 5 jobs in a row".to_string(),
+                value: best.map_or_else(
+                    || "fewer than 5 jobs yet".to_string(),
+                    |(total, _)| format!("{total:.1} t"),
+                ),
+                items: best.map_or_else(Vec::new, |(_, window)| {
+                    window
+                        .iter()
+                        .map(|entry| format!("{}, {:.1} t", job_summary(entry), tonnes(entry)))
+                        .collect()
+                }),
+                complete: current >= NO_PAIN_NO_GAIN_TARGET_TONNES,
+            },
+            note(
+                "Uses the cargo mass the delivery log stores for each job. Any job counts, not \
+                 only Heavy Cargo, and any other job in between breaks the run."
+                    .to_string(),
+            ),
+        ],
+    }
+}
+
+pub(crate) fn i_thought_this_should_be_heavy(save: &SaveGame) -> AchievementEvaluation {
+    let delivered = heavy_cargo_jobs(save)
+        .map(|entry| heavy_cargo_label(cargo_id(&entry.cargo)))
+        .collect::<BTreeSet<_>>();
+    let missing = HEAVY_CARGO_CARGOES
+        .iter()
+        .map(|(id, _)| heavy_cargo_label(id))
+        .filter(|cargo| !delivered.contains(cargo))
+        .collect::<BTreeSet<_>>();
+    let mut evaluation = set_achievement(
+        &delivered,
+        HEAVY_CARGO_TARGET_CARGOES,
+        "cargoes",
+        "Heavy Cargo cargoes",
+    );
+    evaluation.evidence.push(AchievementEvidence {
+        label: "Not delivered yet".to_string(),
+        value: if missing.is_empty() {
+            "none".to_string()
+        } else {
+            summarize_set(&missing, SUMMARY_EVIDENCE_LIMIT)
+        },
+        items: set_items(&missing),
+        complete: missing.is_empty(),
+    });
+    evaluation
+}
+
+// ---- Progress stored in map_action blocks ----------------------------------
+
+/// The item IDs a `map_action` achievement block stores for `api_name`.
+/// `None` when the save has no `map_action` blocks at all (older saves).
+fn map_achievement_ids(save: &SaveGame, api_name: &str) -> Option<Option<Vec<u64>>> {
+    let progress = save.career.map_achievements.as_ref()?;
+    Some(
+        progress
+            .iter()
+            .find(|progress| progress.achievement == api_name)
+            .map(|progress| progress.item_ids.clone()),
+    )
+}
+
+/// Achievements whose progress the game stores in the save as a
+/// `map_action` (`command: achievement`) with the found items' IDs.
+/// `named` lists the items the achievement names, with their IDs where known.
+fn map_achievement(
+    save: &SaveGame,
+    api_name: &str,
+    target: u32,
+    unit: &'static str,
+    kind: &str,
+    named: &[(&str, Option<u64>)],
+) -> AchievementEvaluation {
+    let Some(stored) = map_achievement_ids(save, api_name) else {
+        return missing_data(target, unit, "Stored progress");
+    };
+    let Some(ids) = stored else {
+        let mut evaluation = missing_data(target, unit, "Stored progress");
+        evaluation.evidence[0].value = "none in this save".to_string();
+        evaluation.evidence.push(note(format!(
+            "The save stores no progress for this achievement. Either no {kind} has been \
+             found yet, or the achievement may already be unlocked."
+        )));
+        return evaluation;
+    };
+    let ids = ids.into_iter().collect::<BTreeSet<_>>();
+    let name_for = |id: u64| {
+        named
+            .iter()
+            .find(|(_, known)| *known == Some(id))
+            .map(|(name, _)| (*name).to_string())
+    };
+    let unknown = ids
+        .iter()
+        .filter(|id| name_for(**id).is_none())
+        .copied()
+        .collect::<Vec<_>>();
+    let found = ids
+        .iter()
+        .map(|id| name_for(*id).unwrap_or_else(|| format!("Unknown {kind} (ID {id})")))
+        .collect::<Vec<_>>();
+    let current = ids.len() as u32;
+    let mut evidence = vec![AchievementEvidence {
+        label: "Found".to_string(),
+        value: summarize_list(&found),
+        items: found.clone(),
+        complete: current >= target,
+    }];
+    if !named.is_empty() {
+        let not_found = named
+            .iter()
+            .filter(|(_, id)| id.is_none_or(|id| !ids.contains(&id)))
+            .map(|(name, _)| (*name).to_string())
+            .collect::<Vec<_>>();
+        evidence.push(AchievementEvidence {
+            label: if unknown.is_empty() {
+                "Not found yet".to_string()
+            } else {
+                "Not matched to a found ID".to_string()
+            },
+            value: if not_found.is_empty() {
+                "none".to_string()
+            } else {
+                summarize_list(&not_found)
+            },
+            items: not_found.clone(),
+            complete: not_found.is_empty(),
+        });
+    }
+    if !unknown.is_empty() {
+        evidence.push(note(format!(
+            "The save stores {} ID{} that the tracker cannot name yet. If you know which {kind} \
+             an ID belongs to, please report it as an issue at {ISSUES_URL} so it can be added.",
+            unknown.len(),
+            if unknown.len() == 1 { "" } else { "s" },
+        )));
+    }
+    AchievementEvaluation {
+        status: status_from_progress(current, target),
+        progress: AchievementProgress {
+            current,
+            target,
+            unit,
+        },
+        evidence,
+    }
+}
+
+pub(crate) fn landmark_tour(save: &SaveGame) -> AchievementEvaluation {
+    map_achievement(
+        save,
+        "fr_landmarks",
+        FRANCE_LANDMARKS.len() as u32,
+        "landmarks",
+        "landmark",
+        &FRANCE_LANDMARKS,
+    )
+}
+
+pub(crate) fn taking_the_scenic_route(save: &SaveGame) -> AchievementEvaluation {
+    map_achievement(
+        save,
+        "be_landmarks",
+        BLACK_SEA_LANDMARKS.len() as u32,
+        "landmarks",
+        "landmark",
+        &BLACK_SEA_LANDMARKS,
+    )
+}
+
+pub(crate) fn ranger(save: &SaveGame) -> AchievementEvaluation {
+    map_achievement(
+        save,
+        "be_border_crossings",
+        4,
+        "border crossings",
+        "border crossing",
+        &[],
+    )
+}
+
+pub(crate) fn grand_tour_guide(save: &SaveGame) -> AchievementEvaluation {
+    map_achievement(save, "ib_cutscenes", 12, "viewpoints", "viewpoint", &[])
+}
+
+pub(crate) fn grand_adventurer(save: &SaveGame) -> AchievementEvaluation {
+    map_achievement(save, "bw_cutscenes", 8, "viewpoints", "viewpoint", &[])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ets2::{
         BusJob, CareerStats, DailyProfit, DeliveryLog, DeliveryLogEntry, FerryCrossing, Garage,
-        GarageSize,
+        GarageSize, MapAchievementProgress,
     };
 
     #[test]
@@ -2460,6 +3033,16 @@ mod tests {
                 "turkish_delight",
                 "volvo_trucks_lover",
                 "whatever_floats_your_boat",
+                "not_a_big_problem",
+                "time_for_big_hauling",
+                "keep_calm_and_haul_heavy",
+                "no_pain_no_gain",
+                "i_thought_this_should_be_heavy",
+                "landmark_tour",
+                "ranger",
+                "taking_the_scenic_route",
+                "grand_tour_guide",
+                "grand_adventurer",
             ])
         );
 
@@ -2846,6 +3429,16 @@ mod tests {
         let perfect = achievement_by_id(&save, "job_is_only_worth_it_if_its_done_well");
         assert_eq!(perfect.status, AchievementStatus::InProgress);
         assert_eq!(perfect.evidence[0].value, "missing");
+        // Every 1,000 km+ job is listed with its fines, damage and time left.
+        assert_eq!(perfect.evidence[1].label, "All 1,000 km+ jobs");
+        assert_eq!(
+            perfect.evidence[1].items,
+            vec![
+                "Amsterdam → Amsterdam, gravel, 1091 km, fines €800, damage 0.0%, 868 min left",
+                "Amsterdam → Amsterdam, gravel, 1200 km, fines €0, damage 1.6%, 10 min left",
+                "Amsterdam → Amsterdam, gravel, 1300 km, fines €0, damage 0.0%, late by 313 min",
+            ]
+        );
 
         // On time with no minutes to spare still counts; so does a World of
         // Trucks job marked in time (1).
@@ -2882,10 +3475,18 @@ mod tests {
                 ..urgent(900, 1)
             },
         ]);
+        let just_in_time = achievement_by_id(&save, "just_in_time");
+        assert_eq!(just_in_time.status, AchievementStatus::InProgress);
+        // All urgent 550 km+ jobs are listed, World of Trucks ones too.
         assert_eq!(
-            achievement_by_id(&save, "just_in_time").status,
-            AchievementStatus::InProgress
+            just_in_time.evidence[1].items,
+            vec![
+                "Amsterdam → Amsterdam, gravel, 564 km, 80 min left",
+                "Amsterdam → Amsterdam, gravel, 797 km, late by 153 min",
+                "Amsterdam → Amsterdam, gravel, 900 km, in time",
+            ]
         );
+        assert_eq!(just_in_time.evidence[2].label, "Note");
 
         let mut save = save;
         save.delivery_log.entries.push(urgent(600, 29));
@@ -2944,6 +3545,158 @@ mod tests {
         assert_eq!(minimaxer.status, AchievementStatus::Complete);
         assert_eq!(minimaxer.progress.current, 20_000);
         assert_eq!(minimaxer.evidence[0].value, "20000 XP over 3 jobs, 9999 km");
+        assert_eq!(minimaxer.evidence[0].items.len(), 3);
+        assert_eq!(
+            minimaxer.evidence[0].items[0],
+            "Amsterdam → Amsterdam, gravel, 9000 XP, 4000 km driven"
+        );
+        // The latest run only holds the last job: adding the one before
+        // would reach 10,000 km.
+        assert_eq!(minimaxer.evidence[1].label, "Current run");
+        assert_eq!(
+            minimaxer.evidence[1].value,
+            "15000 XP over 1 jobs, 9999 km (1 km left)"
+        );
+        assert!(!minimaxer.evidence[1].complete);
+    }
+
+    #[test]
+    fn evaluates_not_a_big_problem_from_cargo_damage() {
+        let oversize = |damage: f64| DeliveryLogEntry {
+            cargo_damage: damage,
+            special_route: "ber_szcz1".to_string(),
+            source_company: String::new(),
+            destination_company: String::new(),
+            ..entry("cargo.silo", 400, "vehicle.man.tgx", "spec_oversize")
+        };
+        let save = save_with_entries(vec![
+            oversize(0.0),
+            oversize(0.0),
+            // Another job in between breaks the run.
+            job(300, 0.0, 0, 10),
+            oversize(0.0),
+            oversize(0.01),
+            oversize(0.0),
+        ]);
+        let problem = achievement_by_id(&save, "not_a_big_problem");
+        assert_eq!(problem.status, AchievementStatus::InProgress);
+        assert_eq!(problem.progress.current, 2);
+        assert!(problem.evidence[0].items[0].starts_with("Berlin – Szczecin, silo"));
+        assert_eq!(problem.evidence[1].label, "Note");
+
+        let mut save = save;
+        save.delivery_log
+            .entries
+            .extend([oversize(0.0), oversize(0.0)]);
+        let problem = achievement_by_id(&save, "not_a_big_problem");
+        assert_eq!(problem.status, AchievementStatus::Complete);
+        assert_eq!(problem.progress.current, 3);
+    }
+
+    #[test]
+    fn evaluates_heavy_cargo_achievements() {
+        let heavy = |cargo: &str, mass_kg: f64, fines: u32| DeliveryLogEntry {
+            cargo: format!("cargo.{cargo}"),
+            cargo_mass_kg: Some(mass_kg),
+            ..job(500, 0.0, fines, 30)
+        };
+        let save = save_with_entries(vec![
+            heavy("asph_miller", 44_050.0, 0),
+            heavy("dozer", 39_010.0, 0),
+            heavy("mobile_crane", 36_150.0, 300),
+            heavy("transformat", 47_850.0, 0),
+            heavy("concr_beams", 51_030.0, 0),
+            heavy("dozer", 39_010.0, 0),
+        ]);
+
+        let first = achievement_by_id(&save, "time_for_big_hauling");
+        assert_eq!(first.status, AchievementStatus::Complete);
+        assert_eq!(first.evidence[0].items.len(), 6);
+
+        // The fined crane breaks the run: 2, then 3 perfect jobs in a row.
+        let keep_calm = achievement_by_id(&save, "keep_calm_and_haul_heavy");
+        assert_eq!(keep_calm.status, AchievementStatus::Complete);
+        assert_eq!(keep_calm.evidence[0].value, "3 jobs in a row");
+        assert_eq!(keep_calm.evidence[1].items.len(), 6);
+
+        // Heaviest 5 in a row: 44.05 + 39.01 + 36.15 + 47.85 + 51.03 = 218.09 t.
+        let no_pain = achievement_by_id(&save, "no_pain_no_gain");
+        assert_eq!(no_pain.status, AchievementStatus::InProgress);
+        assert_eq!(no_pain.progress.current, 218);
+        assert_eq!(no_pain.evidence[0].items.len(), 5);
+
+        let cargoes = achievement_by_id(&save, "i_thought_this_should_be_heavy");
+        assert_eq!(cargoes.progress.current, 5);
+        assert_eq!(cargoes.progress.target, 8);
+        assert!(cargoes.evidence[0]
+            .items
+            .contains(&"Asphalt Miller (asph_miller)".to_string()));
+        assert_eq!(cargoes.evidence[1].items.len(), 6);
+        assert!(cargoes.evidence[1]
+            .items
+            .contains(&"mob_stacker".to_string()));
+    }
+
+    #[test]
+    fn evaluates_map_action_achievements() {
+        let mut save = save_with_entries(Vec::new());
+        // No map_action blocks at all: the save cannot say.
+        assert_eq!(
+            achievement_by_id(&save, "landmark_tour").evidence[0].value,
+            "not found in this save"
+        );
+
+        save.career.map_achievements = Some(vec![
+            MapAchievementProgress {
+                achievement: "fr_landmarks".to_string(),
+                item_ids: vec![489_385_028_879_450_112, 489_406_274_463_662_080, 42],
+            },
+            MapAchievementProgress {
+                achievement: "ib_cutscenes".to_string(),
+                item_ids: vec![4_233_202_316_612_075_521, 5_208_280_340_602_290_203],
+            },
+        ]);
+
+        let landmarks = achievement_by_id(&save, "landmark_tour");
+        assert_eq!(landmarks.status, AchievementStatus::InProgress);
+        assert_eq!(landmarks.progress.current, 3);
+        assert_eq!(landmarks.progress.target, 6);
+        assert_eq!(
+            landmarks.evidence[0].items,
+            vec![
+                "Unknown landmark (ID 42)",
+                "Carcassonne",
+                "Château de Ventadour",
+            ]
+        );
+        assert_eq!(landmarks.evidence[1].label, "Not matched to a found ID");
+        assert_eq!(
+            landmarks.evidence[1].items,
+            vec![
+                "Brotonne bridge",
+                "Tiger tank",
+                "Peyrat-le-Château",
+                "Château d'Ussé",
+            ]
+        );
+        assert_eq!(landmarks.evidence[2].label, "Note");
+        assert!(landmarks.evidence[2]
+            .value
+            .contains("report it as an issue"));
+
+        let viewpoints = achievement_by_id(&save, "grand_tour_guide");
+        assert_eq!(viewpoints.progress.current, 2);
+        assert_eq!(viewpoints.progress.target, 12);
+        assert_eq!(
+            viewpoints.evidence[0].items[0],
+            "Unknown viewpoint (ID 4233202316612075521)"
+        );
+
+        // Map actions exist, but none for this achievement.
+        let ranger = achievement_by_id(&save, "ranger");
+        assert_eq!(ranger.status, AchievementStatus::InProgress);
+        assert_eq!(ranger.evidence[0].value, "none in this save");
+        assert_eq!(ranger.evidence[1].label, "Note");
     }
 
     #[test]
@@ -3276,7 +4029,17 @@ mod tests {
         );
         let boat = achievement_by_id(&save, "whatever_floats_your_boat");
         assert_eq!(boat.status, AchievementStatus::Complete);
-        assert_eq!(boat.evidence[1].value, "oslo");
+        assert_eq!(boat.evidence[0].value, "Esbjerg (container port)");
+        assert_eq!(
+            boat.evidence[1].value,
+            "Oslo (container port), Stockholm (marina)"
+        );
+
+        // The Stockholm marina counts too.
+        let save = save_with_entries(vec![to("marina.stockholm", "cargo.lumber")]);
+        let boat = achievement_by_id(&save, "whatever_floats_your_boat");
+        assert_eq!(boat.status, AchievementStatus::Complete);
+        assert_eq!(boat.evidence[0].value, "Stockholm (marina)");
     }
 
     #[test]

@@ -683,6 +683,13 @@ const CITY_LIST_LABELS = {
   "Not discovered yet": "cities not discovered yet",
 };
 
+// Achievements whose progress the save stores as found item IDs.
+const MAP_PROGRESS_LABELS = {
+  Found: "found items",
+  "Not found yet": "items not found yet",
+  "Not matched to a found ID": "items not matched to a found ID",
+};
+
 const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   reliable_contractor: "companies worked with",
   experience_beats_all: "delivered cargoes",
@@ -702,7 +709,10 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   sardine: "used crossings",
   property_magnate: "owned garages",
   go_nuclear: "cities delivered to",
-  whatever_floats_your_boat: "cities delivered to",
+  whatever_floats_your_boat: {
+    "Delivered to": "ports delivered to",
+    "Not delivered to yet": "ports not delivered to yet",
+  },
   captain: "cities delivered to",
   odyssean_voyager: CITY_LIST_LABELS,
   bon_voyage: CITY_LIST_LABELS,
@@ -723,8 +733,34 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   rule_of_threes: "qualifying coach jobs",
   cattle_drive: "cattle deliveries",
   big_brother: "delivered oversize cargoes",
-  job_is_only_worth_it_if_its_done_well: "perfect deliveries",
-  just_in_time: "qualifying deliveries",
+  job_is_only_worth_it_if_its_done_well: {
+    "Perfect 1,000 km+ jobs": "perfect deliveries",
+    "All 1,000 km+ jobs": "1,000 km+ jobs",
+  },
+  just_in_time: {
+    "Urgent 550 km+, under 30 min left": "qualifying deliveries",
+    "All urgent 550 km+ jobs": "urgent 550 km+ jobs",
+  },
+  minimaxer: {
+    "Best run under 10,000 km": "jobs in the best run",
+    "Current run": "jobs in the current run",
+  },
+  not_a_big_problem: "jobs in the run",
+  time_for_big_hauling: "Heavy Cargo deliveries",
+  keep_calm_and_haul_heavy: {
+    "Longest perfect run": "jobs in the run",
+    "All Heavy Cargo jobs": "Heavy Cargo jobs",
+  },
+  no_pain_no_gain: "jobs in the run",
+  i_thought_this_should_be_heavy: {
+    "Heavy Cargo cargoes": "delivered Heavy Cargo cargoes",
+    "Not delivered yet": "Heavy Cargo cargoes not delivered yet",
+  },
+  landmark_tour: MAP_PROGRESS_LABELS,
+  taking_the_scenic_route: MAP_PROGRESS_LABELS,
+  ranger: MAP_PROGRESS_LABELS,
+  grand_tour_guide: MAP_PROGRESS_LABELS,
+  grand_adventurer: MAP_PROGRESS_LABELS,
   driver_exceptionnel: {
     Driven: "driven base game routes",
     "Not driven yet": "base game routes not driven yet",

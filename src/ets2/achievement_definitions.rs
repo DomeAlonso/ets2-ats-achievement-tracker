@@ -447,7 +447,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "st_no_damage",
         display_name: "Not a Big Problem",
         description: "Complete 3 consecutive oversize jobs without any damage (requires Special Transport DLC)",
-        tracking: not_tracked("Needs truck damage per job; only cargo damage is recorded from the save, which the tracker does not read yet."),
+        tracking: tracked(not_a_big_problem),
     },
     AchievementDefinition {
         id: "giant",
@@ -487,7 +487,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "hc_firstjob",
         display_name: "Time for Big Hauling",
         description: "Deliver first Heavy Cargo (requires Heavy Cargo Pack DLC)",
-        tracking: not_tracked("Needs a list of Heavy Cargo Pack cargoes, which the tracker does not have yet."),
+        tracking: tracked(time_for_big_hauling),
     },
     AchievementDefinition {
         id: "keep_calm_and_haul_heavy",
@@ -495,7 +495,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "hc_threeperf",
         display_name: "Keep Calm and Haul Heavy",
         description: "Complete a perfect delivery (no damage, no fines, in-time) of 3 consecutive Heavy Cargo Pack jobs (requires Heavy Cargo Pack DLC)",
-        tracking: not_tracked("Needs per-job fines; the delivery log records damage and lateness, but no confirmed fine field from the save, which the tracker does not read yet."),
+        tracking: tracked(keep_calm_and_haul_heavy),
     },
     AchievementDefinition {
         id: "you_bet_i_can_park_it",
@@ -511,7 +511,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "hc_250t5jobs",
         display_name: "No Pain No Gain",
         description: "Deliver total of 250 tons of cargo on 5 consecutive jobs (requires Heavy Cargo Pack DLC)",
-        tracking: not_tracked("Needs per-job cargo mass data from the save, which the tracker does not read yet."),
+        tracking: tracked(no_pain_no_gain),
     },
     AchievementDefinition {
         id: "i_thought_this_should_be_heavy",
@@ -519,7 +519,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "hc_allcargos",
         display_name: "I Thought This Should Be Heavy?!",
         description: "Complete a delivery of at least 8 unique cargoes from the Heavy Cargo Pack (requires Heavy Cargo Pack DLC)",
-        tracking: not_tracked("Needs a list of Heavy Cargo Pack cargoes, which the tracker does not have yet."),
+        tracking: tracked(i_thought_this_should_be_heavy),
     },
     AchievementDefinition {
         id: "bon_voyage",
@@ -535,7 +535,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "fr_landmarks",
         display_name: "Landmark Tour",
         description: "Discover following landmarks of France: Carcassonne, Brotonne bridge, Tiger tank, Peyrat-le-Château, Château de Ventadour, Château d'Ussé (requires Vive la France ! DLC)",
-        tracking: not_tracked("Needs visited landmark and location data from the save, which the tracker does not read yet."),
+        tracking: tracked(landmark_tour),
     },
     AchievementDefinition {
         id: "go_nuclear",
@@ -583,7 +583,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "be_border_crossings",
         display_name: "Ranger",
         description: "Visit at least 4 border crossings between Romania, Bulgaria and Turkey (requires Road to the Black Sea DLC)",
-        tracking: not_tracked("Needs visited landmark and location data from the save, which the tracker does not read yet."),
+        tracking: tracked(ranger),
     },
     AchievementDefinition {
         id: "ferryman",
@@ -599,7 +599,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "be_landmarks",
         display_name: "Taking the Scenic Route",
         description: "Visit the following landmarks and locations: Iron Gates, Bran Castle (Romania), Pomorie Beach, Wall of Heroes in Varna (Bulgaria), Lake Küçükçekmece in Istanbul (Turkey) (requires Road to the Black Sea DLC)",
-        tracking: not_tracked("Needs visited landmark and location data from the save, which the tracker does not read yet."),
+        tracking: tracked(taking_the_scenic_route),
     },
     AchievementDefinition {
         id: "along_the_black_sea",
@@ -791,7 +791,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "ib_cutscenes",
         display_name: "Grand Tour Guide",
         description: "View cutscenes from at least 12 viewpoints in Iberia (requires Iberia DLC)",
-        tracking: not_tracked("Needs a mapping of the save's numeric viewpoint IDs to regions, which the tracker does not have yet."),
+        tracking: tracked(grand_tour_guide),
     },
     AchievementDefinition {
         id: "imperator",
@@ -863,7 +863,7 @@ pub const ACHIEVEMENTS: [AchievementDefinition; 114] = [
         steam_api_name: "bw_cutscenes",
         display_name: "Grand Adventurer",
         description: "View cutscenes from at least 8 viewpoints in West Balkans (requires West Balkans DLC)",
-        tracking: not_tracked("Needs a mapping of the save's numeric viewpoint IDs to regions, which the tracker does not have yet."),
+        tracking: tracked(grand_adventurer),
     },
     AchievementDefinition {
         id: "through_the_serpentines",
