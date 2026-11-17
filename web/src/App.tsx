@@ -275,9 +275,9 @@ function App() {
         browser.
         <br />
         This tools is{" "}
-        <a href="https://github.com/fangyi-zhou/sii-decode-rs/">open source</a>.
+        <a href="https://github.com/DomeAlonso/ets2-ats-achievement-tracker">open source</a>.
         If you encounter any issues, please report them{" "}
-        <a href="https://github.com/fangyi-zhou/sii-decode-rs/issues">
+        <a href="https://github.com/DomeAlonso/ets2-ats-achievement-tracker/issues">
           on GitHub
         </a>
         .

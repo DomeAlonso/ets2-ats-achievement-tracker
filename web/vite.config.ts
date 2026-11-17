@@ -6,7 +6,7 @@ import wasm from "vite-plugin-wasm";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/sii-decode-rs/',
+  base: '/ets2-ats-achievement-tracker/',
   plugins: [react(), wasm()],
   worker: {
     format: "es",
