@@ -766,7 +766,11 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
   performance_optimizer: "large garages",
   smooth_start: "coach jobs at 90% or more",
   seasoned_traveller: "own-coach jobs",
-  rule_of_threes: "qualifying coach jobs",
+  rule_of_threes: {
+    "300 km+ jobs at 100%": "qualifying coach jobs",
+    "Current run": "coach jobs in the current run",
+  },
+  mass_to_don: { "Current run": "deliveries in the current run" },
   cattle_drive: "cattle deliveries",
   big_brother: "delivered oversize cargoes",
   job_is_only_worth_it_if_its_done_well: {
@@ -781,13 +785,20 @@ const EVIDENCE_ITEM_LABELS: Record<string, EvidenceItemLabel> = {
     "Best run under 10,000 km": "jobs in the best run",
     "Current run": "jobs in the current run",
   },
-  not_a_big_problem: "jobs in the run",
+  not_a_big_problem: {
+    "Longest run without cargo damage": "jobs in the longest run",
+    "Current run": "jobs in the current run",
+  },
   time_for_big_hauling: "Heavy Cargo deliveries",
   keep_calm_and_haul_heavy: {
-    "Longest perfect run": "jobs in the run",
+    "Longest perfect run": "jobs in the longest run",
+    "Current run": "jobs in the current run",
     "All Heavy Cargo jobs": "Heavy Cargo jobs",
   },
-  no_pain_no_gain: "jobs in the run",
+  no_pain_no_gain: {
+    "Heaviest Heavy Cargo run (up to 5 jobs)": "jobs in the heaviest run",
+    "Current run": "jobs in the current run",
+  },
   i_thought_this_should_be_heavy: {
     "Heavy Cargo cargoes": "delivered Heavy Cargo cargoes",
     "Not delivered yet": "Heavy Cargo cargoes not delivered yet",

@@ -836,6 +836,31 @@ fn longest_job_streak(
     best
 }
 
+/// The run of back-to-back jobs at the end of the log that all match
+/// `matches`: the streak a next job could extend.
+fn current_job_streak(
+    save: &SaveGame,
+    matches: impl Fn(&DeliveryLogEntry) -> bool,
+) -> Vec<&DeliveryLogEntry> {
+    let mut run = Vec::new();
+    for entry in jobs(save) {
+        if matches(entry) {
+            run.push(entry);
+        } else {
+            run.clear();
+        }
+    }
+    run
+}
+
+fn jobs_in_a_row_text(jobs: usize) -> String {
+    match jobs {
+        0 => "none: the latest job does not count".to_string(),
+        1 => "1 job".to_string(),
+        jobs => format!("{jobs} jobs in a row"),
+    }
+}
+
 /// Progress for "N consecutive jobs that …" achievements.
 fn job_streak(
     save: &SaveGame,
@@ -843,7 +868,8 @@ fn job_streak(
     label: &str,
     matches: impl Fn(&DeliveryLogEntry) -> bool,
 ) -> AchievementEvaluation {
-    let streak = longest_job_streak(save, matches);
+    let streak = longest_job_streak(save, &matches);
+    let latest = current_job_streak(save, &matches);
     let current = (streak.len() as u32).min(target);
     let items = streak
         .iter()
@@ -856,19 +882,24 @@ fn job_streak(
             target,
             unit: "jobs in a row",
         },
-        evidence: vec![AchievementEvidence {
-            label: label.to_string(),
-            value: if streak.is_empty() {
-                "none yet".to_string()
-            } else {
-                match streak.len() {
-                    1 => "1 job".to_string(),
-                    jobs => format!("{jobs} jobs in a row"),
-                }
+        evidence: vec![
+            AchievementEvidence {
+                label: label.to_string(),
+                value: if streak.is_empty() {
+                    "none yet".to_string()
+                } else {
+                    jobs_in_a_row_text(streak.len())
+                },
+                items,
+                complete: current >= target,
             },
-            items,
-            complete: current >= target,
-        }],
+            AchievementEvidence {
+                label: "Current run".to_string(),
+                value: jobs_in_a_row_text(latest.len()),
+                items: latest.iter().map(|entry| quality_summary(entry)).collect(),
+                complete: latest.len() as u32 >= target,
+            },
+        ],
     }
 }
 
@@ -1545,9 +1576,15 @@ pub(crate) fn rule_of_threes(save: &SaveGame) -> AchievementEvaluation {
         job.distance_km >= RULE_OF_THREES_MIN_DISTANCE_KM && job.satisfaction >= FULL_SATISFACTION
     };
     let (mut best, mut streak) = (0_u32, 0_u32);
+    let mut latest = Vec::new();
     for job in jobs {
         streak = if qualifies(job) { streak + 1 } else { 0 };
         best = best.max(streak);
+        if qualifies(job) {
+            latest.push(bus_job_summary(job));
+        } else {
+            latest.clear();
+        }
     }
     let qualifying = jobs
         .iter()
@@ -1562,12 +1599,20 @@ pub(crate) fn rule_of_threes(save: &SaveGame) -> AchievementEvaluation {
             target: RULE_OF_THREES_TARGET_JOBS,
             unit: "jobs in a row",
         },
-        evidence: vec![AchievementEvidence {
-            label: "300 km+ jobs at 100%".to_string(),
-            value: summarize_list(&qualifying),
-            items: qualifying.clone(),
-            complete: best >= RULE_OF_THREES_TARGET_JOBS,
-        }],
+        evidence: vec![
+            AchievementEvidence {
+                label: "300 km+ jobs at 100%".to_string(),
+                value: summarize_list(&qualifying),
+                items: qualifying.clone(),
+                complete: best >= RULE_OF_THREES_TARGET_JOBS,
+            },
+            AchievementEvidence {
+                label: "Current run".to_string(),
+                value: jobs_in_a_row_text(latest.len()),
+                items: latest.clone(),
+                complete: latest.len() as u32 >= RULE_OF_THREES_TARGET_JOBS,
+            },
+        ],
     }
 }
 
@@ -1958,6 +2003,13 @@ pub(crate) fn mass_to_don(save: &SaveGame) -> AchievementEvaluation {
         })
         .max_by(|left, right| left.0.total_cmp(&right.0));
     let current = best.as_ref().map_or(0, |(tonnes, _)| tonnes.floor() as u32);
+    // The latest Special Transport deliveries in a row, up to three.
+    let latest = current_job_streak(save, |entry| entry.job_type == OVERSIZE_JOB_TYPE);
+    let latest = &latest[latest.len().saturating_sub(3)..];
+    let latest_tonnes = latest
+        .iter()
+        .map(|entry| oversize_tonnes(entry))
+        .sum::<f64>();
 
     AchievementEvaluation {
         status: status_from_progress(current, MASS_TO_DON_TARGET_TONNES),
@@ -1966,15 +2018,41 @@ pub(crate) fn mass_to_don(save: &SaveGame) -> AchievementEvaluation {
             target: MASS_TO_DON_TARGET_TONNES,
             unit: "t",
         },
-        evidence: vec![AchievementEvidence {
-            label: "Heaviest 3 in a row".to_string(),
-            value: best.map_or_else(
-                || "no 3 Special Transport deliveries in a row yet".to_string(),
-                |(tonnes, cargos)| format!("{tonnes:.0} t ({cargos})"),
-            ),
-            items: Vec::new(),
-            complete: current >= MASS_TO_DON_TARGET_TONNES,
-        }],
+        evidence: vec![
+            AchievementEvidence {
+                label: "Heaviest 3 in a row".to_string(),
+                value: best.map_or_else(
+                    || "no 3 Special Transport deliveries in a row yet".to_string(),
+                    |(tonnes, cargos)| format!("{tonnes:.0} t ({cargos})"),
+                ),
+                items: Vec::new(),
+                complete: current >= MASS_TO_DON_TARGET_TONNES,
+            },
+            AchievementEvidence {
+                label: "Current run".to_string(),
+                value: if latest.is_empty() {
+                    jobs_in_a_row_text(0)
+                } else {
+                    format!(
+                        "{latest_tonnes:.0} t over {}",
+                        jobs_in_a_row_text(latest.len())
+                    )
+                },
+                items: latest
+                    .iter()
+                    .map(|entry| {
+                        format!(
+                            "{}, {}, {:.0} t",
+                            job_route(entry),
+                            special_cargo_name(cargo_id(&entry.cargo)),
+                            oversize_tonnes(entry)
+                        )
+                    })
+                    .collect(),
+                complete: latest.len() == 3
+                    && latest_tonnes >= f64::from(MASS_TO_DON_TARGET_TONNES),
+            },
+        ],
     }
 }
 
@@ -2582,6 +2660,18 @@ pub(crate) fn no_pain_no_gain(save: &SaveGame) -> AchievementEvaluation {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
     let full_run = best.is_some_and(|(_, window)| window.len() == NO_PAIN_NO_GAIN_JOBS);
+    // The latest Heavy Cargo jobs in a row, up to five.
+    let latest = current_job_streak(save, is_heavy_cargo);
+    let latest = &latest[latest.len().saturating_sub(NO_PAIN_NO_GAIN_JOBS)..];
+    let latest_tonnes = latest.iter().map(|entry| tonnes(entry)).sum::<f64>();
+    let heavy_item = |entry: &&DeliveryLogEntry| {
+        format!(
+            "{}, {}, {:.1} t",
+            job_route(entry),
+            heavy_cargo_label(cargo_id(&entry.cargo)),
+            tonnes(entry)
+        )
+    };
     let tonnes_total = best.map_or(0, |(total, _)| total.floor() as u32);
     let current = if full_run {
         tonnes_total
@@ -2606,19 +2696,23 @@ pub(crate) fn no_pain_no_gain(save: &SaveGame) -> AchievementEvaluation {
                     },
                 ),
                 items: best.map_or_else(Vec::new, |(_, window)| {
-                    window
-                        .iter()
-                        .map(|entry| {
-                            format!(
-                                "{}, {}, {:.1} t",
-                                job_route(entry),
-                                heavy_cargo_label(cargo_id(&entry.cargo)),
-                                tonnes(entry)
-                            )
-                        })
-                        .collect()
+                    window.iter().map(heavy_item).collect()
                 }),
                 complete: full_run && current >= NO_PAIN_NO_GAIN_TARGET_TONNES,
+            },
+            AchievementEvidence {
+                label: "Current run".to_string(),
+                value: if latest.is_empty() {
+                    jobs_in_a_row_text(0)
+                } else {
+                    format!(
+                        "{latest_tonnes:.1} t over {}",
+                        jobs_in_a_row_text(latest.len())
+                    )
+                },
+                items: latest.iter().map(heavy_item).collect(),
+                complete: latest.len() == NO_PAIN_NO_GAIN_JOBS
+                    && latest_tonnes >= f64::from(NO_PAIN_NO_GAIN_TARGET_TONNES),
             },
             note(
                 "Counts only Heavy Cargo jobs, with the cargo mass the delivery log stores. \
@@ -3237,6 +3331,10 @@ mod tests {
         let mass = achievement_by_id(&save, "mass_to_don");
         assert_eq!(mass.progress.current, 185);
         assert_eq!(mass.status, AchievementStatus::InProgress);
+        // The two deliveries after the regular job: 70 + 60 t.
+        assert_eq!(mass.evidence[1].label, "Current run");
+        assert_eq!(mass.evidence[1].value, "130 t over 2 jobs in a row");
+        assert_eq!(mass.evidence[1].items.len(), 2);
         assert_eq!(
             mass.evidence[0].value,
             "185 t (Heat Exchanger + Heat Exchanger + Boiler Part)"
@@ -3687,7 +3785,10 @@ mod tests {
         assert_eq!(problem.status, AchievementStatus::InProgress);
         assert_eq!(problem.progress.current, 2);
         assert!(problem.evidence[0].items[0].starts_with("Berlin – Szczecin, silo"));
-        assert_eq!(problem.evidence[1].label, "Note");
+        // The damaged job broke the run, so the current run is the last job.
+        assert_eq!(problem.evidence[1].label, "Current run");
+        assert_eq!(problem.evidence[1].value, "1 job");
+        assert_eq!(problem.evidence[2].label, "Note");
 
         let mut save = save;
         save.delivery_log
@@ -3696,6 +3797,17 @@ mod tests {
         let problem = achievement_by_id(&save, "not_a_big_problem");
         assert_eq!(problem.status, AchievementStatus::Complete);
         assert_eq!(problem.progress.current, 3);
+        assert_eq!(problem.evidence[1].value, "3 jobs in a row");
+        assert!(problem.evidence[1].complete);
+
+        // A regular job last means there is no current run.
+        save.delivery_log.entries.push(job(300, 0.0, 0, 10));
+        let problem = achievement_by_id(&save, "not_a_big_problem");
+        assert_eq!(problem.status, AchievementStatus::Complete);
+        assert_eq!(
+            problem.evidence[1].value,
+            "none: the latest job does not count"
+        );
     }
 
     #[test]
@@ -3722,7 +3834,10 @@ mod tests {
         let keep_calm = achievement_by_id(&save, "keep_calm_and_haul_heavy");
         assert_eq!(keep_calm.status, AchievementStatus::Complete);
         assert_eq!(keep_calm.evidence[0].value, "3 jobs in a row");
-        assert_eq!(keep_calm.evidence[1].items.len(), 6);
+        // The last three jobs are the current run too.
+        assert_eq!(keep_calm.evidence[1].label, "Current run");
+        assert_eq!(keep_calm.evidence[1].value, "3 jobs in a row");
+        assert_eq!(keep_calm.evidence[2].items.len(), 6);
 
         // Heaviest 5 in a row: 44.05 + 39.01 + 36.15 + 47.85 + 51.03 = 218.09 t.
         let no_pain = achievement_by_id(&save, "no_pain_no_gain");
@@ -3730,6 +3845,9 @@ mod tests {
         assert_eq!(no_pain.progress.current, 218);
         assert_eq!(no_pain.evidence[0].items.len(), 5);
         assert_eq!(no_pain.evidence[0].value, "218.1 t over 5 jobs in a row");
+        // The current run is the latest five: 39.01 + 36.15 + 47.85 + 51.03 + 39.01.
+        assert_eq!(no_pain.evidence[1].label, "Current run");
+        assert_eq!(no_pain.evidence[1].value, "213.0 t over 5 jobs in a row");
 
         // Only back-to-back Heavy Cargo jobs count: the plain job splits the
         // 120 t pair from the 275 t run of five.
@@ -3757,6 +3875,10 @@ mod tests {
         assert_eq!(no_pain.status, AchievementStatus::InProgress);
         assert_eq!(no_pain.progress.current, 249);
         assert_eq!(no_pain.evidence[0].value, "320.0 t over 2 jobs in a row");
+        assert_eq!(
+            no_pain.evidence[1].value,
+            "none: the latest job does not count"
+        );
 
         let cargoes = achievement_by_id(&save, "i_thought_this_should_be_heavy");
         assert_eq!(cargoes.progress.current, 5);
@@ -4060,6 +4182,8 @@ mod tests {
         // The 299 km job breaks the streak.
         let threes = achievement_by_id(&save, "rule_of_threes");
         assert_eq!(threes.progress.current, 2);
+        assert_eq!(threes.evidence[1].label, "Current run");
+        assert_eq!(threes.evidence[1].value, "1 job");
         assert_eq!(threes.status, AchievementStatus::InProgress);
 
         save.career.bus_jobs.as_mut().unwrap()[3].distance_km = 300;
