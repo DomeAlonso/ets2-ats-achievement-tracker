@@ -223,7 +223,7 @@ const NO_PAIN_NO_GAIN_TARGET_TONNES: u32 = 250;
 const NO_PAIN_NO_GAIN_JOBS: usize = 5;
 const HEAVY_CARGO_TARGET_CARGOES: u32 = 8;
 const NOT_A_BIG_PROBLEM_TARGET_JOBS: u32 = 3;
-const ISSUES_URL: &str = "https://github.com/fangyi-zhou/sii-decode-rs/issues";
+const ISSUES_URL: &str = "https://github.com/DomeAlonso/ets2-ats-achievement-tracker/issues";
 /// Landmark Tour (`fr_landmarks`) landmarks, in the achievement's order, with
 /// the save's item ID where it is known.
 const FRANCE_LANDMARKS: [(&str, Option<u64>); 6] = [
