@@ -275,8 +275,10 @@ function App() {
         browser.
         <br />
         This tools is{" "}
-        <a href="https://github.com/DomeAlonso/ets2-ats-achievement-tracker">open source</a>.
-        If you encounter any issues, please report them{" "}
+        <a href="https://github.com/DomeAlonso/ets2-ats-achievement-tracker">
+          open source
+        </a>
+        . If you encounter any issues, please report them{" "}
         <a href="https://github.com/DomeAlonso/ets2-ats-achievement-tracker/issues">
           on GitHub
         </a>
@@ -387,54 +389,91 @@ function groupAchievements(analysis: TrackerAnalysis): AchievementGroup[] {
   return [...groups.values()].filter((group) => group.achievements.length > 0);
 }
 
-type AchievementFilter = "all" | AchievementStatus;
+const ACHIEVEMENT_STATUS_FILTERS: Array<{
+  value: AchievementStatus;
+  label: string;
+}> = [
+  { value: "complete", label: "Complete" },
+  { value: "in_progress", label: "In progress" },
+  { value: "not_tracked", label: "Not tracked" },
+];
 
-const ACHIEVEMENT_FILTERS: Array<{ value: AchievementFilter; label: string }> =
-  [
-    { value: "all", label: "All" },
-    { value: "complete", label: "Complete" },
-    { value: "in_progress", label: "In progress" },
-    { value: "not_tracked", label: "Not tracked" },
-  ];
+// Case- and accent-insensitive text for search ("cunados" finds "Cuñados").
+function searchText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
 
 function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
-  const [filter, setFilter] = useState<AchievementFilter>("all");
+  // No status selected means every status is shown.
+  const [statuses, setStatuses] = useState<AchievementStatus[]>([]);
+  const [query, setQuery] = useState("");
   const groups = groupAchievements(analysis);
-  const countFor = (value: AchievementFilter) =>
-    value === "all"
-      ? analysis.achievements.length
-      : analysis.achievements.filter(
-          (achievement) => achievement.status === value,
-        ).length;
+  const terms = searchText(query).split(/\s+/).filter(Boolean);
+  const matchesSearch = (achievement: Achievement) => {
+    const text = searchText(
+      `${achievement.display_name} ${achievement.description}`,
+    );
+    return terms.every((term) => text.includes(term));
+  };
+  const matchesStatus = (achievement: Achievement) =>
+    statuses.length === 0 || statuses.includes(achievement.status);
+  const searched = analysis.achievements.filter(matchesSearch);
+  const countFor = (status: AchievementStatus) =>
+    searched.filter((achievement) => achievement.status === status).length;
+  const toggleStatus = (status: AchievementStatus) =>
+    setStatuses((current) =>
+      current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status],
+    );
   const visibleGroups = groups
     .map((group) => ({
       group,
-      visible:
-        filter === "all"
-          ? group.achievements
-          : group.achievements.filter(
-              (achievement) => achievement.status === filter,
-            ),
+      visible: group.achievements.filter(
+        (achievement) =>
+          matchesSearch(achievement) && matchesStatus(achievement),
+      ),
     }))
     .filter(({ visible }) => visible.length > 0);
+  const filterKey = [...statuses].sort().join("+") || "all";
 
   return (
     <section className="achievement-groups" aria-label="Achievements">
-      <div
-        className="achievement-filter"
-        role="group"
-        aria-label="Filter achievements by status"
-      >
-        {ACHIEVEMENT_FILTERS.map(({ value, label }) => (
+      <div className="achievement-controls">
+        <input
+          type="search"
+          className="achievement-search"
+          placeholder="Search achievements"
+          aria-label="Search achievements by title or description"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div
+          className="achievement-filter"
+          role="group"
+          aria-label="Filter achievements by status"
+        >
           <button
-            key={value}
             type="button"
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
+            aria-pressed={statuses.length === 0}
+            onClick={() => setStatuses([])}
           >
-            {label} ({countFor(value)})
+            All ({searched.length})
           </button>
-        ))}
+          {ACHIEVEMENT_STATUS_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={statuses.includes(value)}
+              onClick={() => toggleStatus(value)}
+            >
+              {label} ({countFor(value)})
+            </button>
+          ))}
+        </div>
       </div>
       {analysis.achievement_groups ? null : (
         <p className="warning" data-testid="tracker-stale-decoder">
@@ -445,17 +484,16 @@ function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
       )}
       {visibleGroups.length === 0 ? (
         <p className="achievement-filter-empty">
-          No achievements match this filter.
+          No achievements match this filter and search.
         </p>
       ) : null}
-      {visibleGroups.map(({ group, visible }, index) => (
+      {visibleGroups.map(({ group, visible }) => (
         <AchievementGroupSection
-          // Reset expansion when the filter changes: a filter opens every
-          // set that has matches, "All" opens only the first one.
-          key={`${group.id}-${filter}`}
+          // Every set starts open; changing the filter or search reopens
+          // the sets so their matches are visible.
+          key={`${group.id}-${filterKey}-${query}`}
           group={group}
           visibleAchievements={visible}
-          defaultExpanded={filter !== "all" || index === 0}
         />
       ))}
     </section>
@@ -465,13 +503,11 @@ function AchievementGroups({ analysis }: { analysis: TrackerAnalysis }) {
 function AchievementGroupSection({
   group,
   visibleAchievements,
-  defaultExpanded,
 }: {
   group: AchievementGroup;
   visibleAchievements: Achievement[];
-  defaultExpanded: boolean;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(true);
   const contentId = `achievement-group-${group.id}`;
   const total = group.achievements.length;
   const complete = group.achievements.filter(

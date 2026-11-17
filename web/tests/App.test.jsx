@@ -419,7 +419,7 @@ test("Tracker can render analysis", async () => {
   ).toHaveClass("evidence-full");
 });
 
-test("Tracker groups achievements by set and expands them on click", async () => {
+test("Tracker groups achievements by set, all open, and collapses them on click", async () => {
   window.location.hash = "#tracker";
   render(<App />);
 
@@ -444,12 +444,9 @@ test("Tracker groups achievements by set and expands them on click", async () =>
   const specialTransport = screen.getByRole("button", {
     name: /Special Transport Expansion Achievements/,
   });
-  expect(specialTransport).toHaveAttribute("aria-expanded", "false");
-  expect(specialTransport).toHaveTextContent("1 / 1 complete");
-  expect(screen.queryByText("Size Matters")).not.toBeInTheDocument();
-
-  await userEvent.click(specialTransport);
+  // Every set starts open, not only the first.
   expect(specialTransport).toHaveAttribute("aria-expanded", "true");
+  expect(specialTransport).toHaveTextContent("1 / 1 complete");
   const sizeMatters = screen.getByText("Size Matters").closest("article");
   await userEvent.click(
     within(sizeMatters).getByRole("button", {
@@ -464,7 +461,7 @@ test("Tracker groups achievements by set and expands them on click", async () =>
   expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
 });
 
-test("Tracker filters achievements by status across all sets", async () => {
+test("Tracker filters achievements by one or more statuses", async () => {
   window.location.hash = "#tracker";
   render(<App />);
 
@@ -479,17 +476,19 @@ test("Tracker filters achievements by status across all sets", async () => {
   const filters = screen.getByRole("group", {
     name: "Filter achievements by status",
   });
-  expect(
-    within(filters).getByRole("button", { name: "All (5)" }),
-  ).toHaveAttribute("aria-pressed", "true");
-  expect(
-    within(filters).getByRole("button", { name: "In progress (2)" }),
-  ).toBeInTheDocument();
+  const all = within(filters).getByRole("button", { name: "All (5)" });
+  const complete = within(filters).getByRole("button", {
+    name: "Complete (2)",
+  });
+  const notTracked = within(filters).getByRole("button", {
+    name: "Not tracked (1)",
+  });
+  expect(all).toHaveAttribute("aria-pressed", "true");
 
-  // Complete: matches in both sets, and every matching set opens.
-  await userEvent.click(
-    within(filters).getByRole("button", { name: "Complete (2)" }),
-  );
+  // Complete: matches in both sets.
+  await userEvent.click(complete);
+  expect(complete).toHaveAttribute("aria-pressed", "true");
+  expect(all).toHaveAttribute("aria-pressed", "false");
   expect(screen.getAllByTestId("achievement-group")).toHaveLength(2);
   expect(screen.getByText("Long Hauler")).toBeInTheDocument();
   expect(screen.getByText("Size Matters")).toBeInTheDocument();
@@ -497,19 +496,63 @@ test("Tracker filters achievements by status across all sets", async () => {
   expect(screen.queryByText("Property Magnate")).not.toBeInTheDocument();
   expect(screen.getByText("Achievements (1 of 4)")).toBeInTheDocument();
 
-  // Not tracked: the Special Transport set has none, so it is hidden.
-  await userEvent.click(
-    within(filters).getByRole("button", { name: "Not tracked (1)" }),
-  );
+  // Adding Not tracked shows both statuses together.
+  await userEvent.click(notTracked);
+  expect(complete).toHaveAttribute("aria-pressed", "true");
+  expect(notTracked).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText("Long Hauler")).toBeInTheDocument();
+  expect(screen.getByText("Property Magnate")).toBeInTheDocument();
+  expect(screen.queryByText("Experience Beats All")).not.toBeInTheDocument();
+  expect(screen.getByText("Achievements (2 of 4)")).toBeInTheDocument();
+
+  // Clicking a selected status again removes it.
+  await userEvent.click(complete);
   expect(screen.getAllByTestId("achievement-group")).toHaveLength(1);
   expect(screen.getByText("Property Magnate")).toBeInTheDocument();
   expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
 
-  await userEvent.click(
-    within(filters).getByRole("button", { name: "All (5)" }),
-  );
+  // All clears the selection.
+  await userEvent.click(all);
+  expect(all).toHaveAttribute("aria-pressed", "true");
+  expect(notTracked).toHaveAttribute("aria-pressed", "false");
   expect(screen.getByText("Long Hauler")).toBeInTheDocument();
+  expect(screen.getByText("Size Matters")).toBeInTheDocument();
+});
+
+test("Tracker searches achievement titles and descriptions", async () => {
+  window.location.hash = "#tracker";
+  render(<App />);
+
+  await userEvent.upload(
+    screen.getByTestId("tracker-file-upload"),
+    new File(["BSII"], "save.sii"),
+  );
+  await waitFor(() => {
+    expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
+  });
+
+  const search = screen.getByRole("searchbox", {
+    name: "Search achievements by title or description",
+  });
+
+  // Title match.
+  await userEvent.type(search, "hauler");
+  expect(screen.getByText("Long Hauler")).toBeInTheDocument();
+  expect(screen.queryByText("Property Magnate")).not.toBeInTheDocument();
   expect(screen.queryByText("Size Matters")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "All (1)" })).toBeInTheDocument();
+
+  // Description match, case-insensitive.
+  await userEvent.clear(search);
+  await userEvent.type(search, "GARAGES");
+  expect(screen.getByText("Property Magnate")).toBeInTheDocument();
+  expect(screen.queryByText("Long Hauler")).not.toBeInTheDocument();
+
+  // Search and status filter combine.
+  await userEvent.click(screen.getByRole("button", { name: "Complete (0)" }));
+  expect(
+    screen.getByText("No achievements match this filter and search."),
+  ).toBeInTheDocument();
 });
 
 test("Test Drive Limited highlights brands that reached 999 km", async () => {
@@ -684,9 +727,10 @@ test("Map progress cards list found items and explain unknown IDs", async () => 
     expect(screen.getByTestId("tracker-results")).toBeInTheDocument();
   });
 
-  await userEvent.click(
+  // Every set is open from the start.
+  expect(
     screen.getByRole("button", { name: /Vive la France ! Achievements/ }),
-  );
+  ).toHaveAttribute("aria-expanded", "true");
   expect(
     screen.getByText(/please report it as an issue so it can be added/),
   ).toBeInTheDocument();

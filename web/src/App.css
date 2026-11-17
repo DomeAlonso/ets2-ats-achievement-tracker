@@ -169,6 +169,30 @@ textarea {
   color: #92400e;
 }
 
+.achievement-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.achievement-search {
+  flex: 1 1 240px;
+  min-width: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #152033;
+  background: #ffffff;
+}
+
+.achievement-search:focus {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 1px;
+}
+
 .achievement-filter {
   display: flex;
   flex-wrap: wrap;

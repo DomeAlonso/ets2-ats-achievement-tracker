@@ -203,8 +203,7 @@ const SCANDINAVIA_PORTS: [(&str, &str); 3] = [
     ("cont_port", "oslo"),
     ("marina", "stockholm"),
 ];
-/// Heavy Cargo Pack cargo IDs with their in-game names. The name of
-/// `mob_stacker` is not confirmed.
+/// Heavy Cargo Pack cargo IDs with their in-game names.
 const HEAVY_CARGO_CARGOES: [(&str, Option<&str>); 11] = [
     ("asph_miller", Some("Asphalt Miller")),
     ("cable_reel", Some("Industrial Cable Reel")),
@@ -215,7 +214,7 @@ const HEAVY_CARGO_CARGOES: [(&str, Option<&str>); 11] = [
     ("mobile_crane", Some("Mobile Crane")),
     ("mob_crusher", Some("Mobile Crusher")),
     ("mob_screener", Some("Mobile Screener")),
-    ("mob_stacker", None),
+    ("mob_stacker", Some("Mobile Stacker")),
     ("transformat", Some("Transformer")),
 ];
 const KEEP_CALM_TARGET_JOBS: u32 = 3;
@@ -236,10 +235,69 @@ const FRANCE_LANDMARKS: [(&str, Option<u64>); 6] = [
 ];
 const BLACK_SEA_LANDMARKS: [(&str, Option<u64>); 5] = [
     ("Iron Gates", None),
-    ("Bran Castle", None),
+    ("Bran Castle", Some(3_603_761_290_847_911_936)),
     ("Pomorie Beach", None),
     ("Wall of Heroes (Varna)", None),
     ("Lake Küçükçekmece (Istanbul)", None),
+];
+/// Ranger (`be_border_crossings`) border crossings.
+const BLACK_SEA_BORDER_CROSSINGS: [(&str, Option<u64>); 5] = [
+    ("Mangalia – Varna", None),
+    (
+        "Punctul de Frontiera Giurgiu (Bucharest – Ruse)",
+        Some(3_603_756_116_972_601_344),
+    ),
+    (
+        "Lesovo – Hamzabeyli (Edirne – Veliko Tarnovo)",
+        Some(3_603_752_993_147_256_833),
+    ),
+    ("Edirne – Plovdiv", None),
+    ("Kozloduy – Craiova", None),
+];
+/// Grand Tour Guide (`ib_cutscenes`) viewpoints.
+const IBERIA_VIEWPOINTS: [(&str, Option<u64>); 15] = [
+    ("Los Tres Cuñados quarry (O Barco)", None),
+    ("25 de Abril Bridge (Lisbon)", None),
+    (
+        "Reservoir of Barrios de Luna (León)",
+        Some(4_302_904_945_408_409_600),
+    ),
+    (
+        "Guadiana International Bridge (Olhão)",
+        Some(4_233_202_316_612_075_521),
+    ),
+    ("The City of Olhão (Olhão)", None),
+    ("Greenhouses of El Ejido (El Ejido)", None),
+    ("The Refinery of Puertollano (Puertollano)", None),
+    ("The Shopping Centre of Zaragoza (Zaragoza)", None),
+    ("The Port of Valencia (Valencia)", None),
+    ("The Port of Porto (Porto)", None),
+    ("The Port of Sines (Sines)", None),
+    ("The Solar Power Tower of Andalusia (Sevilla)", None),
+    ("The Parabolic Power Plant of Andalusia (Granada)", None),
+    ("The Ferry Port of Santander (Santander)", None),
+    (
+        "The City of Barcelona (Barcelona)",
+        Some(4_325_886_063_837_380_609),
+    ),
+];
+/// Grand Adventurer (`bw_cutscenes`) viewpoints.
+const WEST_BALKANS_VIEWPOINTS: [(&str, Option<u64>); 15] = [
+    ("Bihać", None),
+    ("Center of Pristina", None),
+    ("Dubrovnik", None),
+    ("Đurđevića Tara Bridge", None),
+    ("Durrës Marina", None),
+    ("Fier Oil Fields", None),
+    ("Koper", None),
+    ("Kovačica Wind Park", None),
+    ("Ljubljana", None),
+    ("Old Town of Sarajevo", None),
+    ("Prokuplje", None),
+    ("Quarry near Gostivar", None),
+    ("Rijeka Port", None),
+    ("Split", None),
+    ("Tirana", None),
 ];
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -2497,17 +2555,39 @@ pub(crate) fn keep_calm_and_haul_heavy(save: &SaveGame) -> AchievementEvaluation
 }
 
 pub(crate) fn no_pain_no_gain(save: &SaveGame) -> AchievementEvaluation {
-    let jobs = jobs(save).collect::<Vec<_>>();
-    let best = jobs
-        .windows(NO_PAIN_NO_GAIN_JOBS)
+    // Runs of back-to-back Heavy Cargo jobs; any other job breaks a run.
+    let mut runs: Vec<Vec<&DeliveryLogEntry>> = vec![Vec::new()];
+    for entry in jobs(save) {
+        if is_heavy_cargo(entry) {
+            runs.last_mut().expect("runs is never empty").push(entry);
+        } else if !runs.last().expect("runs is never empty").is_empty() {
+            runs.push(Vec::new());
+        }
+    }
+    // The heaviest window of up to 5 jobs inside any run. Only a full window
+    // of 5 jobs can complete the achievement.
+    let best = runs
+        .iter()
+        .filter(|run| !run.is_empty())
+        .flat_map(|run| run.windows(run.len().min(NO_PAIN_NO_GAIN_JOBS)))
         .map(|window| {
             (
                 window.iter().map(|entry| tonnes(entry)).sum::<f64>(),
                 window,
             )
         })
-        .max_by(|left, right| left.0.total_cmp(&right.0));
-    let current = best.map_or(0, |(total, _)| total.floor() as u32);
+        .max_by(|left, right| {
+            (left.1.len(), left.0)
+                .partial_cmp(&(right.1.len(), right.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+    let full_run = best.is_some_and(|(_, window)| window.len() == NO_PAIN_NO_GAIN_JOBS);
+    let tonnes_total = best.map_or(0, |(total, _)| total.floor() as u32);
+    let current = if full_run {
+        tonnes_total
+    } else {
+        tonnes_total.min(NO_PAIN_NO_GAIN_TARGET_TONNES - 1)
+    };
     AchievementEvaluation {
         status: status_from_progress(current, NO_PAIN_NO_GAIN_TARGET_TONNES),
         progress: AchievementProgress {
@@ -2517,22 +2597,33 @@ pub(crate) fn no_pain_no_gain(save: &SaveGame) -> AchievementEvaluation {
         },
         evidence: vec![
             AchievementEvidence {
-                label: "Heaviest 5 jobs in a row".to_string(),
+                label: "Heaviest Heavy Cargo run (up to 5 jobs)".to_string(),
                 value: best.map_or_else(
-                    || "fewer than 5 jobs yet".to_string(),
-                    |(total, _)| format!("{total:.1} t"),
+                    || "no Heavy Cargo jobs yet".to_string(),
+                    |(total, window)| match window.len() {
+                        1 => format!("{total:.1} t over 1 job"),
+                        jobs => format!("{total:.1} t over {jobs} jobs in a row"),
+                    },
                 ),
                 items: best.map_or_else(Vec::new, |(_, window)| {
                     window
                         .iter()
-                        .map(|entry| format!("{}, {:.1} t", job_summary(entry), tonnes(entry)))
+                        .map(|entry| {
+                            format!(
+                                "{}, {}, {:.1} t",
+                                job_route(entry),
+                                heavy_cargo_label(cargo_id(&entry.cargo)),
+                                tonnes(entry)
+                            )
+                        })
                         .collect()
                 }),
-                complete: current >= NO_PAIN_NO_GAIN_TARGET_TONNES,
+                complete: full_run && current >= NO_PAIN_NO_GAIN_TARGET_TONNES,
             },
             note(
-                "Uses the cargo mass the delivery log stores for each job. Any job counts, not \
-                 only Heavy Cargo, and any other job in between breaks the run."
+                "Counts only Heavy Cargo jobs, with the cargo mass the delivery log stores. \
+                 Consecutive is read as back to back: any other job in between, such as a \
+                 Special Transport job, breaks the run."
                     .to_string(),
             ),
         ],
@@ -2696,16 +2787,30 @@ pub(crate) fn ranger(save: &SaveGame) -> AchievementEvaluation {
         4,
         "border crossings",
         "border crossing",
-        &[],
+        &BLACK_SEA_BORDER_CROSSINGS,
     )
 }
 
 pub(crate) fn grand_tour_guide(save: &SaveGame) -> AchievementEvaluation {
-    map_achievement(save, "ib_cutscenes", 12, "viewpoints", "viewpoint", &[])
+    map_achievement(
+        save,
+        "ib_cutscenes",
+        12,
+        "viewpoints",
+        "viewpoint",
+        &IBERIA_VIEWPOINTS,
+    )
 }
 
 pub(crate) fn grand_adventurer(save: &SaveGame) -> AchievementEvaluation {
-    map_achievement(save, "bw_cutscenes", 8, "viewpoints", "viewpoint", &[])
+    map_achievement(
+        save,
+        "bw_cutscenes",
+        8,
+        "viewpoints",
+        "viewpoint",
+        &WEST_BALKANS_VIEWPOINTS,
+    )
 }
 
 #[cfg(test)]
@@ -3624,6 +3729,34 @@ mod tests {
         assert_eq!(no_pain.status, AchievementStatus::InProgress);
         assert_eq!(no_pain.progress.current, 218);
         assert_eq!(no_pain.evidence[0].items.len(), 5);
+        assert_eq!(no_pain.evidence[0].value, "218.1 t over 5 jobs in a row");
+
+        // Only back-to-back Heavy Cargo jobs count: the plain job splits the
+        // 120 t pair from the 275 t run of five.
+        let other_save = save_with_entries(vec![
+            heavy("concr_beams", 60_000.0, 0),
+            heavy("concr_beams", 60_000.0, 0),
+            job(300, 0.0, 0, 10),
+            heavy("transformat", 55_000.0, 0),
+            heavy("transformat", 55_000.0, 0),
+            heavy("transformat", 55_000.0, 0),
+            heavy("transformat", 55_000.0, 0),
+            heavy("transformat", 55_000.0, 0),
+        ]);
+        let no_pain = achievement_by_id(&other_save, "no_pain_no_gain");
+        assert_eq!(no_pain.status, AchievementStatus::Complete);
+        assert_eq!(no_pain.progress.current, 275);
+
+        // A run shorter than five jobs cannot complete it, however heavy.
+        let other_save = save_with_entries(vec![
+            heavy("locomotive", 160_000.0, 0),
+            heavy("locomotive", 160_000.0, 0),
+            job(300, 0.0, 0, 10),
+        ]);
+        let no_pain = achievement_by_id(&other_save, "no_pain_no_gain");
+        assert_eq!(no_pain.status, AchievementStatus::InProgress);
+        assert_eq!(no_pain.progress.current, 249);
+        assert_eq!(no_pain.evidence[0].value, "320.0 t over 2 jobs in a row");
 
         let cargoes = achievement_by_id(&save, "i_thought_this_should_be_heavy");
         assert_eq!(cargoes.progress.current, 5);
@@ -3634,7 +3767,7 @@ mod tests {
         assert_eq!(cargoes.evidence[1].items.len(), 6);
         assert!(cargoes.evidence[1]
             .items
-            .contains(&"mob_stacker".to_string()));
+            .contains(&"Mobile Stacker (mob_stacker)".to_string()));
     }
 
     #[test]
@@ -3688,9 +3821,15 @@ mod tests {
         assert_eq!(viewpoints.progress.current, 2);
         assert_eq!(viewpoints.progress.target, 12);
         assert_eq!(
-            viewpoints.evidence[0].items[0],
-            "Unknown viewpoint (ID 4233202316612075521)"
+            viewpoints.evidence[0].items,
+            vec![
+                "Guadiana International Bridge (Olhão)",
+                "Unknown viewpoint (ID 5208280340602290203)",
+            ]
         );
+        // 14 named viewpoints remain; one of them may be the unknown ID.
+        assert_eq!(viewpoints.evidence[1].label, "Not matched to a found ID");
+        assert_eq!(viewpoints.evidence[1].items.len(), 14);
 
         // Map actions exist, but none for this achievement.
         let ranger = achievement_by_id(&save, "ranger");
