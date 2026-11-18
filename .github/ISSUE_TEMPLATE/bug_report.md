@@ -1,30 +1,59 @@
----
 name: Bug report
-about: Create a report to help us improve
+description: Create a report to help us improve
 title: ''
-labels: ''
-assignees: ''
+labels: []
+assignees: []
+body:
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
 
----
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior.
+      value: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+  - type: input
+    id: version
+    attributes:
+      label: Current ETS2/ATS version
+      description: Please provide the exact version number of the game you are running.
+      placeholder: "e.g., 1.48.5"
+    validations:
+      required: true
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots & File Attachments
+      description: If applicable, add screenshots or game logs to help explain your problem. **You can drag and drop images and files directly into this box.**
+    validations:
+      required: false
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Current ETS2/ATS version**
- 
-
-**Additional context**
-Add any other context about the problem here.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.
+    validations:
+      required: false
