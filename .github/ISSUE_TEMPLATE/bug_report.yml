@@ -8,7 +8,16 @@ body:
       description: A clear and concise description of what the bug is.
     validations:
       required: true
-
+      
+  - type: input
+    id: version
+    attributes:
+      label: Current ETS2/ATS version
+      description: Please provide the exact version number of the game you are running.
+      placeholder: "e.g., 1.48.5"
+    validations:
+      required: true
+      
   - type: textarea
     id: reproduce
     attributes:
@@ -30,27 +39,11 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: version
-    attributes:
-      label: Current ETS2/ATS version
-      description: Please provide the exact version number of the game you are running.
-      placeholder: "e.g., 1.48.5"
-    validations:
-      required: true
-
   - type: textarea
     id: attachments
     attributes:
       label: Screenshots & File Attachments
-      description: If applicable, add screenshots or game logs to help explain your problem. **You can drag and drop images and files directly into this box.**
+      description: If applicable, add screenshots or savegame to help analyse and test the issue. **You can drag and drop images and files directly into this box.**
     validations:
       required: false
 
-  - type: textarea
-    id: additional-context
-    attributes:
-      label: Additional context
-      description: Add any other context about the problem here.
-    validations:
-      required: false
