@@ -346,6 +346,11 @@ progress {
   white-space: normal;
 }
 
+.evidence-list li.evidence-wrap .evidence-value {
+  overflow: visible;
+  white-space: normal;
+}
+
 .evidence-summary {
   min-width: 0;
   border: 1px solid #c8d0dc;

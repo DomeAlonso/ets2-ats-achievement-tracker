@@ -855,7 +855,7 @@ fn current_job_streak(
 
 fn jobs_in_a_row_text(jobs: usize) -> String {
     match jobs {
-        0 => "none: the latest job does not count".to_string(),
+        0 => "0 jobs".to_string(),
         1 => "1 job".to_string(),
         jobs => format!("{jobs} jobs in a row"),
     }
@@ -3804,10 +3804,7 @@ mod tests {
         save.delivery_log.entries.push(job(300, 0.0, 0, 10));
         let problem = achievement_by_id(&save, "not_a_big_problem");
         assert_eq!(problem.status, AchievementStatus::Complete);
-        assert_eq!(
-            problem.evidence[1].value,
-            "none: the latest job does not count"
-        );
+        assert_eq!(problem.evidence[1].value, "0 jobs");
     }
 
     #[test]
@@ -3875,10 +3872,7 @@ mod tests {
         assert_eq!(no_pain.status, AchievementStatus::InProgress);
         assert_eq!(no_pain.progress.current, 249);
         assert_eq!(no_pain.evidence[0].value, "320.0 t over 2 jobs in a row");
-        assert_eq!(
-            no_pain.evidence[1].value,
-            "none: the latest job does not count"
-        );
+        assert_eq!(no_pain.evidence[1].value, "0 jobs");
 
         let cargoes = achievement_by_id(&save, "i_thought_this_should_be_heavy");
         assert_eq!(cargoes.progress.current, 5);

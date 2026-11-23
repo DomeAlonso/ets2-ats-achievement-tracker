@@ -1,0 +1,58 @@
+name: Achievement tracking issue report
+description: Create a report about wrong tracking of an achievement
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Name of the achievement
+      description: Please provide the exact name of the achievement that is tracked incorrectly.
+      placeholder: "e.g., Pathfinder"
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+      
+  - type: input
+    id: version
+    attributes:
+      label: Current ETS2/ATS version
+      description: Please provide the exact version number of the game you are running.
+      placeholder: "e.g., 1.48.5"
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior.
+      value: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Savegame, Screenshots & File Attachments
+      description: If possible provide a savegame or screenshots to help analyse and test the issue. **You can drag and drop images and files directly into this box.**
+    validations:
+      required: false
+

@@ -627,6 +627,7 @@ function AchievementEvidenceList({
             [
               highlighted ? "evidence-complete" : "",
               FULL_TEXT_EVIDENCE_LABELS.has(item.label) ? "evidence-full" : "",
+              WRAP_TEXT_EVIDENCE_LABELS.has(item.label) ? "evidence-wrap" : "",
             ]
               .filter(Boolean)
               .join(" ") || undefined;
@@ -828,6 +829,9 @@ const HIGHLIGHT_COMPLETE_EVIDENCE = new Set([
 
 // Explanations shown in full (wrapped) instead of cut to one line.
 const FULL_TEXT_EVIDENCE_LABELS = new Set(["Note", "Not tracked yet"]);
+// Short values that may still not fit on one line: wrap instead of cutting
+// them off.
+const WRAP_TEXT_EVIDENCE_LABELS = new Set(["Current run"]);
 
 function evidenceListItemLabel(
   itemLabel: EvidenceItemLabel | null,
